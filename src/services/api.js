@@ -3,7 +3,7 @@ import axios from "axios";
 const API = axios.create({
   baseURL:
     process.env.NODE_ENV === "production"
-      ? "https://edusync-server.onrender.com"
+      ? "https://edusync-server.onrender.com/api"
       : "/api",
 });
 
