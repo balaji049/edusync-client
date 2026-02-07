@@ -1,0 +1,127 @@
+.landing {
+  padding: 2rem 5vw 4rem;
+}
+
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr);
+  gap: 3rem;
+  align-items: center;
+}
+
+.landing-hero-text h1 {
+  font-size: clamp(2.4rem, 3vw, 3.4rem);
+  line-height: 1.1;
+  margin-bottom: 1rem;
+}
+
+.highlight {
+  color: #4f46e5;
+}
+
+.landing-subtitle {
+  color: #4b5563;
+  margin-bottom: 1.5rem;
+  max-width: 38rem;
+}
+
+.landing-cta-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.ghost-link {
+  font-size: 0.95rem;
+  color: #4b5563;
+  text-decoration: none;
+}
+
+.landing-feature-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.landing-feature-pills span {
+  background: #eef2ff;
+  color: #4338ca;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.landing-hero-visual .hero-card {
+  background: #111827;
+  color: white;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.6);
+}
+
+.hero-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin-bottom: 1rem;
+}
+
+.hero-chat-bubble {
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  max-width: 20rem;
+}
+
+.hero-chat-bubble.user {
+  background: #1f2937;
+}
+
+.hero-chat-bubble.ai {
+  background: #4f46e5;
+}
+
+.hero-chat-bubble.teacher {
+  background: #047857;
+}
+
+.hero-caption {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.landing-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+
+.landing-section {
+  border-radius: 1rem;
+  padding: 1.5rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.landing-section h2 {
+  margin-bottom: 0.5rem;
+}
+
+.landing-section p {
+  font-size: 0.95rem;
+  color: #4b5563;
+}
+
+/* Simple responsive tweak */
+@media (max-width: 900px) {
+  .landing-hero {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,35 @@
+.resource-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.resource-link {
+  font-size: 14px;
+  color: #2563eb;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.resource-link:hover {
+  text-decoration: underline;
+}
+
+.resource-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.resource-btn.danger {
+  color: #dc2626;
+}
+.resource-meta {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  color: #6b7280;
+  margin: 6px 0 4px;
+}

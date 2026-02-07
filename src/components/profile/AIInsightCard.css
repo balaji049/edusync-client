@@ -1,0 +1,8 @@
+.insight-card {
+  background: #f9fafb;
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+.insight-card ul li {
+  margin: 0.3rem 0;
+}
