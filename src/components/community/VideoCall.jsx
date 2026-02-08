@@ -2,79 +2,82 @@
 import React, { useEffect, useRef } from "react";
 import socket from "../../services/socket";
 import {
-  registerRemoteStreamHandler,
   answerVideoCall,
   handleVideoAnswer,
   handleVideoIce,
+  registerRemoteStreamSetter,
 } from "../../services/webrtcVideo";
 import { useCall } from "../../context/CallContext";
 
 const VideoCall = () => {
-  const { inCall, callType, videoStreams, setVideoStreams } = useCall();
-  const containerRef = useRef(null);
+  const { inCall, callType, remoteStream, setRemoteStream } = useCall();
+
+  const remoteVideoRef = useRef(null);
 
   /* =========================
-     REGISTER REMOTE STREAM HANDLER
+     REGISTER REMOTE STREAM
   ========================= */
   useEffect(() => {
-    registerRemoteStreamHandler((peerId, stream) => {
-      setVideoStreams((prev) => {
-        if (prev.some((v) => v.peerId === peerId)) return prev;
-        return [...prev, { peerId, stream }];
-      });
-    });
-  }, [setVideoStreams]);
+    registerRemoteStreamSetter(setRemoteStream);
+  }, [setRemoteStream]);
 
   /* =========================
      SOCKET SIGNALING
   ========================= */
   useEffect(() => {
-    socket.on("call:offer", ({ from, offer }) =>
-      answerVideoCall(offer, from)
-    );
+  // When someone joins AFTER me → I create offer
+  socket.on("call:user-joined", async ({ socketId }) => {
+    await startVideoCall([socketId]);
+  });
 
-    socket.on("call:answer", ({ from, answer }) =>
-      handleVideoAnswer(answer, from)
-    );
+  socket.on("call:offer", async ({ offer, from }) => {
+    await answerVideoCall(offer, from);
+  });
 
-    socket.on("call:ice", ({ from, candidate }) =>
-      handleVideoIce(candidate, from)
-    );
+  socket.on("call:answer", ({ answer, from }) => {
+    handleVideoAnswer(answer, from);
+  });
 
-    return () => {
-      socket.off("call:offer");
-      socket.off("call:answer");
-      socket.off("call:ice");
-    };
-  }, []);
+  socket.on("call:ice", ({ candidate, from }) => {
+    handleVideoIce(candidate, from);
+  });
+
+  return () => {
+    socket.off("call:user-joined");
+    socket.off("call:offer");
+    socket.off("call:answer");
+    socket.off("call:ice");
+  };
+}, []);
+
 
   /* =========================
-     RENDER REMOTE VIDEOS
+     ATTACH REMOTE STREAM
   ========================= */
   useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = "";
-
-    videoStreams.forEach(({ peerId, stream }) => {
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.autoplay = true;
-      video.playsInline = true;
-      video.style.width = "240px";
-      video.style.borderRadius = "8px";
-      video.style.background = "#000";
-      containerRef.current.appendChild(video);
-    });
-  }, [videoStreams]);
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current
+        .play()
+        .catch(() => {});
+    }
+  }, [remoteStream]);
 
   if (!inCall || callType !== "video") return null;
 
   return (
     <div style={{ marginTop: "10px" }}>
-      <h4>🎥 Video Call</h4>
-      <div
-        ref={containerRef}
-        style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}
+      <h4>🎥 Video Call Active</h4>
+
+      <video
+        ref={remoteVideoRef}
+        autoPlay
+        playsInline
+        style={{
+          width: "240px",
+          background: "#000",
+          borderRadius: "8px",
+        }}
       />
     </div>
   );

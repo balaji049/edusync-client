@@ -1,65 +1,40 @@
 // src/components/community/VideoButton.jsx
-import React, { useEffect, useRef } from "react";
+import React, { useRef } from "react";
 import socket from "../../services/socket";
-import {
-  startVideoCall,
-  endVideoCall,
-} from "../../services/webrtcVideo";
 import { useCall } from "../../context/CallContext";
+import { startVideoCall, endVideoCall } from "../../services/webrtcVideo";
 
-const VideoButton = ({ communityId, channelId, user }) => {
+const VideoButton = ({ communityId, channelId }) => {
   const { inCall, callType, startCall, endCall } = useCall();
   const localVideoRef = useRef(null);
 
-  const handleJoin = () => {
-    socket.emit("call:join", {
-      communityId,
-      channelId,
-      user,
-    });
+  const handleJoin = async () => {
+  socket.emit("call:join", {
+    communityId,
+    channelId,
+  });
 
-    startCall("video", `${communityId}:${channelId}`);
-  };
+  startCall("video", `${communityId}:${channelId}`);
+};
+
 
   const handleLeave = () => {
-    socket.emit("call:leave", { communityId, channelId });
     endVideoCall();
+    socket.emit("call:leave", { communityId, channelId });
     endCall();
   };
-
-  useEffect(() => {
-    socket.on("call:existing-users", async (peerIds) => {
-      if (peerIds.length === 0) return;
-
-      const stream = await startVideoCall(peerIds);
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true;
-        localVideoRef.current.playsInline = true;
-      }
-    });
-
-    socket.on("call:user-joined", async ({ socketId }) => {
-      const stream = await startVideoCall([socketId]);
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true;
-        localVideoRef.current.playsInline = true;
-      }
-    });
-
-    return () => {
-      socket.off("call:existing-users");
-      socket.off("call:user-joined");
-    };
-  }, []);
 
   return (
     <>
       <button
         onClick={inCall && callType === "video" ? handleLeave : handleJoin}
+        style={{
+          background: inCall ? "#dc2626" : "#2563eb",
+          color: "#fff",
+          padding: "6px 12px",
+          borderRadius: "6px",
+          marginLeft: "8px",
+        }}
       >
         {inCall && callType === "video"
           ? "Leave Video Call"
