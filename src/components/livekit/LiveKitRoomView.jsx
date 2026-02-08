@@ -18,7 +18,7 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
   const [serverUrl, setServerUrl] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ SIMPLE room name (LiveKit safe)
+  // ✅ SIMPLE room name (NO colons)
   const roomName = `community-${communityId}-${channelId}`;
 
   useEffect(() => {
@@ -30,23 +30,31 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
       try {
         setLoading(true);
 
-        const response = await API.post("/livekit/token", {
+        const res = await API.post("/livekit/token", {
           roomName,
           userId: user._id,
           userName: user.name,
           isHost: true,
         });
 
-        // 🔒 HARD GUARANTEE
-        const tokenString = response.data?.token;
-        const urlString = response.data?.url;
+        /*
+          🔥 HARD SAFETY:
+          Force token to be STRING no matter what
+        */
+        const rawToken = res.data?.token;
+        const url = res.data?.url;
 
-        console.log("LIVEKIT TOKEN TYPE:", typeof tokenString);
-        console.log("LIVEKIT URL:", urlString);
+        const jwt =
+          typeof rawToken === "string"
+            ? rawToken
+            : String(rawToken);
+
+        console.log("LIVEKIT TOKEN TYPE:", typeof jwt);
+        console.log("LIVEKIT URL:", url);
 
         if (!cancelled) {
-          setToken(tokenString);
-          setServerUrl(urlString);
+          setToken(jwt);       // ✅ ALWAYS STRING
+          setServerUrl(url);   // ✅ wss://xxxx.livekit.cloud
         }
       } catch (err) {
         console.error("❌ LiveKit token fetch failed:", err);
@@ -56,12 +64,14 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
     };
 
     fetchToken();
-
     return () => {
       cancelled = true;
     };
   }, [inCall, callType, roomName, user]);
 
+  /* =========================
+     GUARDS
+  ========================= */
   if (!inCall || callType !== "video") return null;
 
   if (loading || !token || !serverUrl) {
@@ -82,6 +92,9 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
     );
   }
 
+  /* =========================
+     RENDER LIVEKIT
+  ========================= */
   return (
     <div
       style={{
@@ -92,8 +105,8 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
       }}
     >
       <LiveKitRoom
-        token={token}              // ✅ STRING
-        serverUrl={serverUrl}      // ✅ wss://xxx.livekit.cloud
+        token={token}           // ✅ STRING JWT
+        serverUrl={serverUrl}   // ✅ wss://...
         connect={true}
         video={true}
         audio={true}
