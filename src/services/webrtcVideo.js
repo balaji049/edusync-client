@@ -1,23 +1,48 @@
 import socket from "./socket";
 
 /* =========================
-   ICE CONFIG
+   ICE CONFIG (STUN + TURN)
+   🔥 REQUIRED FOR RENDER
 ========================= */
 const ICE_SERVERS = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  iceServers: [
+    { urls: "stun:stun.relay.metered.ca:80" },
+
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: process.env.REACT_APP_TURN_USERNAME,
+      credential: process.env.REACT_APP_TURN_CREDENTIAL,
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80?transport=tcp",
+      username: process.env.REACT_APP_TURN_USERNAME,
+      credential: process.env.REACT_APP_TURN_CREDENTIAL,
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: process.env.REACT_APP_TURN_USERNAME,
+      credential: process.env.REACT_APP_TURN_CREDENTIAL,
+    },
+    {
+      urls: "turns:global.relay.metered.ca:443?transport=tcp",
+      username: process.env.REACT_APP_TURN_USERNAME,
+      credential: process.env.REACT_APP_TURN_CREDENTIAL,
+    },
+  ],
 };
 
+
 /* =========================
-   MODULE STATE
+   MODULE STATE (SINGLETON)
 ========================= */
 
-// peerSocketId -> RTCPeerConnection
+// peerSocketId → RTCPeerConnection
 const peerConnections = new Map();
 
-// peerSocketId -> MediaStream
+// peerSocketId → MediaStream
 const remoteStreams = new Map();
 
-// peerSocketId -> ICE candidates queue
+// peerSocketId → queued ICE
 const pendingIce = new Map();
 
 let localStream = null;
@@ -25,6 +50,7 @@ let setVideoStreamFn = null;
 
 /* =========================
    REGISTER STREAM SETTER
+   (VideoCall → CallContext)
 ========================= */
 export function registerVideoStreamSetter(fn) {
   setVideoStreamFn = fn;
@@ -67,16 +93,14 @@ function createPeerConnection(peerSocketId) {
     }
   };
 
-  /* Remote media */
-  pc.ontrack = (event) => {
-    const stream = event.streams[0];
+  /* Remote tracks (video + audio) */
+  pc.ontrack = ({ streams }) => {
+    const stream = streams[0];
     if (!stream) return;
 
     if (!remoteStreams.has(peerSocketId)) {
       remoteStreams.set(peerSocketId, stream);
-      if (setVideoStreamFn) {
-        setVideoStreamFn(peerSocketId, stream);
-      }
+      setVideoStreamFn?.(peerSocketId, stream);
     }
   };
 
@@ -85,6 +109,7 @@ function createPeerConnection(peerSocketId) {
 
 /* =========================
    START VIDEO CALL (CALLER)
+   🔥 ONLY HOST CALLS THIS
 ========================= */
 export async function startVideoCall(peerSocketIds = []) {
   const stream = await getLocalStream();
@@ -94,7 +119,7 @@ export async function startVideoCall(peerSocketIds = []) {
 
     const pc = createPeerConnection(peerId);
 
-    // Add local tracks FIRST (caller side)
+    // Add local tracks BEFORE offer
     stream.getTracks().forEach((track) =>
       pc.addTrack(track, stream)
     );
@@ -112,28 +137,28 @@ export async function startVideoCall(peerSocketIds = []) {
 }
 
 /* =========================
-   ANSWER VIDEO CALL (FIXED)
+   ANSWER VIDEO CALL
 ========================= */
 export async function answerVideoCall(offer, from) {
   const stream = await getLocalStream();
   const pc = createPeerConnection(from);
 
-  // 🔥 STEP 1: set remote description FIRST
+  // 1️⃣ Set remote SDP first
   await pc.setRemoteDescription(offer);
 
-  // 🔥 STEP 2: add local tracks AFTER remote SDP
+  // 2️⃣ Add local tracks after SDP
   stream.getTracks().forEach((track) =>
     pc.addTrack(track, stream)
   );
 
-  // 🔥 STEP 3: flush ICE queue
+  // 3️⃣ Flush queued ICE
   const queued = pendingIce.get(from) || [];
   for (const candidate of queued) {
     await pc.addIceCandidate(candidate);
   }
   pendingIce.set(from, []);
 
-  // 🔥 STEP 4: create & send answer
+  // 4️⃣ Answer
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
 
@@ -164,7 +189,7 @@ export async function handleVideoAnswer(answer, from) {
 }
 
 /* =========================
-   HANDLE ICE
+   HANDLE ICE (RACE SAFE)
 ========================= */
 export async function handleVideoIce(candidate, from) {
   const pc = peerConnections.get(from);
