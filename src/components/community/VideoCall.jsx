@@ -14,7 +14,6 @@ const VideoCall = ({ communityId, channelId }) => {
   const {
     inCall,
     callType,
-    callHost,
     participants,
     videoStreams,
     addParticipant,
@@ -22,50 +21,45 @@ const VideoCall = ({ communityId, channelId }) => {
     setVideoStream,
   } = useCall();
 
-  /* =========================
-     REMOTE AUDIO ELEMENTS
-  ========================= */
   const audioRefs = useRef(new Map());
+  const isHostRef = useRef(false); // 🔑 HOST FLAG
 
-  /* =========================
-     REGISTER VIDEO STREAM SETTER
-  ========================= */
+  /* Register stream setter */
   useEffect(() => {
     registerVideoStreamSetter(setVideoStream);
   }, [setVideoStream]);
 
   /* =========================
-     SOCKET → CALL STATE
+     JOIN LOGIC (HOST VS JOINER)
   ========================= */
   useEffect(() => {
     if (!inCall || callType !== "video") return;
 
-    const handleCallState = ({ hostSocketId, participants }) => {
-      participants.forEach((id) => addParticipant(id));
+    const handleExisting = async (socketIds) => {
+      socketIds.forEach((id) => addParticipant(id));
 
-      // 🔥 HOST creates offers to existing participants
-      if (hostSocketId === socket.id) {
-        const others = participants.filter(
-          (id) => id !== socket.id
-        );
-        if (others.length > 0) {
-          startVideoCall(others);
-        }
+      if (socketIds.length === 0) {
+        // 🟢 FIRST USER = HOST
+        isHostRef.current = true;
+        console.log("🎥 I am host");
+      } else {
+        // 🔵 JOINER → wait, do NOT create offer
+        isHostRef.current = false;
+        console.log("🎥 I am joiner");
       }
     };
 
     const handleUserJoined = async ({ socketId, user }) => {
       addParticipant(socketId, user);
 
-      // 🔥 ONLY HOST CREATES OFFER
-      if (callHost === socket.id) {
+      // 🟢 ONLY HOST CREATES OFFER
+      if (isHostRef.current) {
         await startVideoCall([socketId]);
       }
     };
 
     const handleUserLeft = ({ socketId }) => {
       removeParticipant(socketId);
-
       const audio = audioRefs.current.get(socketId);
       if (audio) {
         audio.pause();
@@ -74,25 +68,19 @@ const VideoCall = ({ communityId, channelId }) => {
       }
     };
 
-    socket.on("call:state", handleCallState);
+    socket.on("call:existing-users", handleExisting);
     socket.on("call:user-joined", handleUserJoined);
     socket.on("call:user-left", handleUserLeft);
 
     return () => {
-      socket.off("call:state", handleCallState);
+      socket.off("call:existing-users", handleExisting);
       socket.off("call:user-joined", handleUserJoined);
       socket.off("call:user-left", handleUserLeft);
     };
-  }, [
-    inCall,
-    callType,
-    callHost,
-    addParticipant,
-    removeParticipant,
-  ]);
+  }, [inCall, callType]);
 
   /* =========================
-     SOCKET → WEBRTC SIGNALING
+     WEBRTC SIGNALING
   ========================= */
   useEffect(() => {
     if (!inCall || callType !== "video") return;
@@ -100,11 +88,9 @@ const VideoCall = ({ communityId, channelId }) => {
     socket.on("call:offer", ({ offer, from }) =>
       answerVideoCall(offer, from)
     );
-
     socket.on("call:answer", ({ answer, from }) =>
       handleVideoAnswer(answer, from)
     );
-
     socket.on("call:ice", ({ candidate, from }) =>
       handleVideoIce(candidate, from)
     );
@@ -120,46 +106,26 @@ const VideoCall = ({ communityId, channelId }) => {
      ATTACH REMOTE AUDIO
   ========================= */
   useEffect(() => {
-    participants.forEach((participant) => {
-      const stream = videoStreams.get(participant.socketId);
-      if (!stream) return;
+    participants.forEach((p) => {
+      const stream = videoStreams.get(p.socketId);
+      if (!stream || audioRefs.current.has(p.socketId)) return;
 
-      if (!audioRefs.current.has(participant.socketId)) {
-        const audio = document.createElement("audio");
-        audio.srcObject = stream;
-        audio.autoplay = true;
-        audio.playsInline = true;
-
-        audio.play().catch(() => {});
-        audioRefs.current.set(participant.socketId, audio);
-      }
+      const audio = document.createElement("audio");
+      audio.srcObject = stream;
+      audio.autoplay = true;
+      audio.playsInline = true;
+      audio.play().catch(() => {});
+      audioRefs.current.set(p.socketId, audio);
     });
   }, [participants, videoStreams]);
 
-  /* =========================
-     RENDER
-  ========================= */
   if (!inCall || callType !== "video") return null;
 
   return (
-    <div
-      style={{
-        marginTop: "10px",
-        padding: "12px",
-        background: "#0f172a",
-        borderRadius: "10px",
-      }}
-    >
-      <div
-        style={{
-          color: "#fff",
-          marginBottom: "8px",
-          fontSize: "14px",
-        }}
-      >
-        🎥 Video Call — {participants.size} joined
+    <div style={{ padding: 12, background: "#0f172a", borderRadius: 10 }}>
+      <div style={{ color: "#fff", marginBottom: 8 }}>
+        🎥 Video Call — {participants.size + 1} joined
       </div>
-
       <VideoGrid />
     </div>
   );
