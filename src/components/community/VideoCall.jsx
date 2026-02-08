@@ -2,28 +2,43 @@
 import React, { useEffect, useRef } from "react";
 import socket from "../../services/socket";
 import {
-  registerRemoteStreamSetter,
-  handleOffer,
-  handleAnswer,
-  handleIce,
+  registerRemoteStreamHandler,
+  answerVideoCall,
+  handleVideoAnswer,
+  handleVideoIce,
 } from "../../services/webrtcVideo";
 import { useCall } from "../../context/CallContext";
 
 const VideoCall = () => {
-  const { inCall, callType, remoteStream, setRemoteStream } = useCall();
-  const remoteVideoRef = useRef(null);
+  const { inCall, callType, videoStreams, setVideoStreams } = useCall();
+  const containerRef = useRef(null);
 
+  /* =========================
+     REGISTER REMOTE STREAM HANDLER
+  ========================= */
   useEffect(() => {
-    registerRemoteStreamSetter(setRemoteStream);
+    registerRemoteStreamHandler((peerId, stream) => {
+      setVideoStreams((prev) => {
+        if (prev.some((v) => v.peerId === peerId)) return prev;
+        return [...prev, { peerId, stream }];
+      });
+    });
+  }, [setVideoStreams]);
 
+  /* =========================
+     SOCKET SIGNALING
+  ========================= */
+  useEffect(() => {
     socket.on("call:offer", ({ from, offer }) =>
-      handleOffer(from, offer)
+      answerVideoCall(offer, from)
     );
+
     socket.on("call:answer", ({ from, answer }) =>
-      handleAnswer(from, answer)
+      handleVideoAnswer(answer, from)
     );
+
     socket.on("call:ice", ({ from, candidate }) =>
-      handleIce(from, candidate)
+      handleVideoIce(candidate, from)
     );
 
     return () => {
@@ -33,22 +48,35 @@ const VideoCall = () => {
     };
   }, []);
 
+  /* =========================
+     RENDER REMOTE VIDEOS
+  ========================= */
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-      remoteVideoRef.current.play().catch(() => {});
-    }
-  }, [remoteStream]);
+    if (!containerRef.current) return;
+    containerRef.current.innerHTML = "";
+
+    videoStreams.forEach(({ peerId, stream }) => {
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.style.width = "240px";
+      video.style.borderRadius = "8px";
+      video.style.background = "#000";
+      containerRef.current.appendChild(video);
+    });
+  }, [videoStreams]);
 
   if (!inCall || callType !== "video") return null;
 
   return (
-    <video
-      ref={remoteVideoRef}
-      autoPlay
-      playsInline
-      style={{ width: "240px", background: "#000" }}
-    />
+    <div style={{ marginTop: "10px" }}>
+      <h4>🎥 Video Call</h4>
+      <div
+        ref={containerRef}
+        style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}
+      />
+    </div>
   );
 };
 
