@@ -2,7 +2,6 @@ import React, {
   createContext,
   useContext,
   useState,
-  useRef,
 } from "react";
 
 /*
@@ -11,7 +10,7 @@ import React, {
 
   It does NOT know about:
   - WebRTC internals
-  - socket.io events
+  - socket.io logic
 */
 
 const CallContext = createContext(null);
@@ -22,7 +21,10 @@ export const CallProvider = ({ children }) => {
   ========================= */
   const [inCall, setInCall] = useState(false);
   const [callType, setCallType] = useState(null); // "voice" | "video"
-  const [callRoom, setCallRoom] = useState(null); // call:<community>:<channel>
+  const [callRoom, setCallRoom] = useState(null);
+
+  /* 🔥 HOST (ONLY OFFER CREATOR) */
+  const [callHost, setCallHost] = useState(null); // socketId
 
   /* =========================
      PARTICIPANTS
@@ -45,7 +47,6 @@ export const CallProvider = ({ children }) => {
      CALL LIFECYCLE
   ========================= */
   const startCall = (type, room) => {
-    // HARD GUARANTEE: only one call at a time
     if (inCall) return;
 
     setInCall(true);
@@ -54,23 +55,18 @@ export const CallProvider = ({ children }) => {
   };
 
   const endCall = () => {
-    // UI state reset FIRST
     setInCall(false);
     setCallType(null);
     setCallRoom(null);
+    setCallHost(null);
 
-    // Stop local tracks (camera/mic)
     localStream?.getTracks().forEach((t) => t.stop());
-
-    // Stop remote voice
     remoteStream?.getTracks().forEach((t) => t.stop());
 
-    // Stop all remote video streams
     videoStreams.forEach((stream) => {
       stream.getTracks().forEach((t) => t.stop());
     });
 
-    // Clear all state
     setLocalStream(null);
     setRemoteStream(null);
     setVideoStreams(new Map());
@@ -134,6 +130,10 @@ export const CallProvider = ({ children }) => {
         inCall,
         callType,
         callRoom,
+        callHost,
+
+        /* host control */
+        setCallHost,
 
         /* participants */
         participants,

@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import socket from "../../services/socket";
 import { useCall } from "../../context/CallContext";
 import { endVideoCall } from "../../services/webrtcVideo";
@@ -7,20 +7,43 @@ const VideoButton = ({ communityId, channelId }) => {
   const {
     inCall,
     callType,
+    callHost,
     startCall,
     endCall,
     setLocalStream,
+    setCallHost,
   } = useCall();
 
   const localVideoRef = useRef(null);
+  const room = `call:${communityId}:${channelId}`;
 
+  /* =========================
+     RECEIVE CALL STATE
+  ========================= */
+  useEffect(() => {
+    const handleCallState = ({ hostSocketId }) => {
+      setCallHost(hostSocketId);
+    };
+
+    const handleHostChanged = ({ hostSocketId }) => {
+      setCallHost(hostSocketId);
+    };
+
+    socket.on("call:state", handleCallState);
+    socket.on("call:host-changed", handleHostChanged);
+
+    return () => {
+      socket.off("call:state", handleCallState);
+      socket.off("call:host-changed", handleHostChanged);
+    };
+  }, [setCallHost]);
+
+  /* =========================
+     START / JOIN CALL
+  ========================= */
   const handleJoin = async () => {
-    const room = `call:${communityId}:${channelId}`;
-
-    // 1️⃣ Enter video mode FIRST
     startCall("video", room);
 
-    // 2️⃣ Get local media (preview only)
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
@@ -34,7 +57,6 @@ const VideoButton = ({ communityId, channelId }) => {
       await localVideoRef.current.play().catch(() => {});
     }
 
-    // 3️⃣ Join signaling room (NO WebRTC start here)
     socket.emit("call:join", {
       communityId,
       channelId,
@@ -47,25 +69,35 @@ const VideoButton = ({ communityId, channelId }) => {
     endCall();
   };
 
+  /* =========================
+     UI LOGIC
+  ========================= */
+  const callExists = !!callHost;
+  const isInVideo = inCall && callType === "video";
+
+  let buttonText = "Start Video Call";
+  if (callExists && !isInVideo) buttonText = "Join Video Call";
+  if (isInVideo) buttonText = "Leave Video Call";
+
+  let onClick = handleJoin;
+  if (isInVideo) onClick = handleLeave;
+
   return (
     <>
       <button
-        onClick={inCall && callType === "video" ? handleLeave : handleJoin}
+        onClick={onClick}
         style={{
-          background:
-            inCall && callType === "video" ? "#dc2626" : "#2563eb",
+          background: isInVideo ? "#dc2626" : "#2563eb",
           color: "#fff",
           padding: "6px 12px",
           borderRadius: "6px",
           marginLeft: "8px",
         }}
       >
-        {inCall && callType === "video"
-          ? "Leave Video Call"
-          : "Join Video Call"}
+        {buttonText}
       </button>
 
-      {inCall && callType === "video" && (
+      {isInVideo && (
         <video
           ref={localVideoRef}
           autoPlay

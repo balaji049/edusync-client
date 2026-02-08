@@ -2,8 +2,8 @@ import React, { useEffect, useRef } from "react";
 import socket from "../../services/socket";
 import { useCall } from "../../context/CallContext";
 import VideoGrid from "./video/VideoGrid";
-import { startVideoCall } from "../../services/webrtcVideo";
 import {
+  startVideoCall,
   answerVideoCall,
   handleVideoAnswer,
   handleVideoIce,
@@ -14,6 +14,7 @@ const VideoCall = ({ communityId, channelId }) => {
   const {
     inCall,
     callType,
+    callHost,
     participants,
     videoStreams,
     addParticipant,
@@ -23,36 +24,46 @@ const VideoCall = ({ communityId, channelId }) => {
 
   /* =========================
      REMOTE AUDIO ELEMENTS
-     (one per peer)
   ========================= */
   const audioRefs = useRef(new Map());
 
   /* =========================
-     REGISTER STREAM SETTER
-     (WebRTC → CallContext)
+     REGISTER VIDEO STREAM SETTER
   ========================= */
   useEffect(() => {
     registerVideoStreamSetter(setVideoStream);
   }, [setVideoStream]);
 
   /* =========================
-     SOCKET → PARTICIPANTS ONLY
-     (NO WebRTC here)
+     SOCKET → CALL STATE
   ========================= */
   useEffect(() => {
     if (!inCall || callType !== "video") return;
 
-    const handleExisting = (socketIds) => {
-      socketIds.forEach((id) => addParticipant(id));
+    const handleCallState = ({ hostSocketId, participants }) => {
+      participants.forEach((id) => addParticipant(id));
+
+      // 🔥 HOST creates offers to existing participants
+      if (hostSocketId === socket.id) {
+        const others = participants.filter(
+          (id) => id !== socket.id
+        );
+        if (others.length > 0) {
+          startVideoCall(others);
+        }
+      }
     };
 
-    const handleJoined = async ({ socketId, user }) => {
-  addParticipant(socketId, user);
-  await startVideoCall([socketId]);
-};
+    const handleUserJoined = async ({ socketId, user }) => {
+      addParticipant(socketId, user);
 
+      // 🔥 ONLY HOST CREATES OFFER
+      if (callHost === socket.id) {
+        await startVideoCall([socketId]);
+      }
+    };
 
-    const handleLeft = ({ socketId }) => {
+    const handleUserLeft = ({ socketId }) => {
       removeParticipant(socketId);
 
       const audio = audioRefs.current.get(socketId);
@@ -63,18 +74,19 @@ const VideoCall = ({ communityId, channelId }) => {
       }
     };
 
-    socket.on("call:existing-users", handleExisting);
-    socket.on("call:user-joined", handleJoined);
-    socket.on("call:user-left", handleLeft);
+    socket.on("call:state", handleCallState);
+    socket.on("call:user-joined", handleUserJoined);
+    socket.on("call:user-left", handleUserLeft);
 
     return () => {
-      socket.off("call:existing-users", handleExisting);
-      socket.off("call:user-joined", handleJoined);
-      socket.off("call:user-left", handleLeft);
+      socket.off("call:state", handleCallState);
+      socket.off("call:user-joined", handleUserJoined);
+      socket.off("call:user-left", handleUserLeft);
     };
   }, [
     inCall,
     callType,
+    callHost,
     addParticipant,
     removeParticipant,
   ]);
@@ -106,7 +118,6 @@ const VideoCall = ({ communityId, channelId }) => {
 
   /* =========================
      ATTACH REMOTE AUDIO
-     (Zoom / Discord pattern)
   ========================= */
   useEffect(() => {
     participants.forEach((participant) => {
@@ -119,12 +130,7 @@ const VideoCall = ({ communityId, channelId }) => {
         audio.autoplay = true;
         audio.playsInline = true;
 
-        audio
-          .play()
-          .catch(() =>
-            console.warn("🔇 Audio autoplay blocked")
-          );
-
+        audio.play().catch(() => {});
         audioRefs.current.set(participant.socketId, audio);
       }
     });
