@@ -25,17 +25,18 @@ const VideoCall = () => {
      SOCKET SIGNALING
   ========================= */
   useEffect(() => {
-    socket.on("call:offer", async ({ offer }) => {
-      await answerVideoCall(offer);
-    });
+    socket.on("call:offer", async ({ offer, from }) => {
+  await answerVideoCall(offer, from);
+});
 
-    socket.on("call:answer", ({ answer }) => {
-      handleVideoAnswer(answer);
-    });
+socket.on("call:answer", ({ answer, from }) => {
+  handleVideoAnswer(answer, from);
+});
 
-    socket.on("call:ice", ({ candidate }) => {
-      handleVideoIce(candidate);
-    });
+socket.on("call:ice", ({ candidate, from }) => {
+  handleVideoIce(candidate, from);
+});
+
 
     return () => {
       socket.off("call:offer");

@@ -1,14 +1,15 @@
 // src/services/webrtcVideo.js
 import socket from "./socket";
 
-let pc = null;
-let localStream = null;
-let remoteStream = null;
-let setRemoteStreamFn = null;
-
 const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
+
+// socketId -> RTCPeerConnection
+const peers = new Map();
+
+let localStream = null;
+let setRemoteStreamFn = null;
 
 /* =========================
    REGISTER REMOTE STREAM SETTER
@@ -18,76 +19,77 @@ export function registerRemoteStreamSetter(fn) {
 }
 
 /* =========================
+   GET LOCAL MEDIA (ONCE)
+========================= */
+async function getLocalStream() {
+  if (localStream) return localStream;
+
+  localStream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true,
+  });
+
+  return localStream;
+}
+
+/* =========================
    CREATE PEER CONNECTION
 ========================= */
-function createPeerConnection() {
-  pc = new RTCPeerConnection(ICE_SERVERS);
+function createPeerConnection(remoteSocketId) {
+  const pc = new RTCPeerConnection(ICE_SERVERS);
 
   pc.onicecandidate = (e) => {
     if (e.candidate) {
       socket.emit("call:ice", {
-        to: currentPeer,
+        to: remoteSocketId,
         candidate: e.candidate,
       });
     }
   };
 
   pc.ontrack = (e) => {
-    if (!remoteStream) {
-      remoteStream = new MediaStream();
-      setRemoteStreamFn?.(remoteStream);
-    }
-    remoteStream.addTrack(e.track);
+    const stream = e.streams[0];
+    setRemoteStreamFn?.(stream);
   };
-}
 
-let currentPeer = null;
+  peers.set(remoteSocketId, pc);
+  return pc;
+}
 
 /* =========================
    START VIDEO CALL (CALLER)
 ========================= */
-export async function startVideoCall(peers) {
-  localStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-    video: true,
-  });
+export async function startVideoCall(existingPeers) {
+  const stream = await getLocalStream();
 
-  createPeerConnection();
+  for (const peerId of existingPeers) {
+    const pc = createPeerConnection(peerId);
 
-  localStream.getTracks().forEach((track) =>
-    pc.addTrack(track, localStream)
-  );
-
-  for (const peerSocketId of peers) {
-    currentPeer = peerSocketId;
+    stream.getTracks().forEach((track) =>
+      pc.addTrack(track, stream)
+    );
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
     socket.emit("call:offer", {
-      to: peerSocketId,
+      to: peerId,
       offer,
     });
   }
 
-  return localStream;
+  return stream;
 }
 
 /* =========================
-   ANSWER VIDEO CALL (RECEIVER)
+   ANSWER VIDEO CALL
 ========================= */
 export async function answerVideoCall(offer, from) {
-  currentPeer = from;
+  const stream = await getLocalStream();
+  const pc = createPeerConnection(from);
 
-  localStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-    video: true,
-  });
-
-  createPeerConnection();
-
-  localStream.getTracks().forEach((track) =>
-    pc.addTrack(track, localStream)
+  stream.getTracks().forEach((track) =>
+    pc.addTrack(track, stream)
   );
 
   await pc.setRemoteDescription(offer);
@@ -100,35 +102,36 @@ export async function answerVideoCall(offer, from) {
     answer,
   });
 
-  return localStream;
+  return stream;
 }
 
 /* =========================
    HANDLE ANSWER
 ========================= */
-export async function handleVideoAnswer(answer) {
+export async function handleVideoAnswer(answer, from) {
+  const pc = peers.get(from);
+  if (!pc) return;
+
   await pc.setRemoteDescription(answer);
 }
 
 /* =========================
    HANDLE ICE
 ========================= */
-export async function handleVideoIce(candidate) {
-  if (candidate && pc) {
-    await pc.addIceCandidate(candidate);
-  }
+export async function handleVideoIce(candidate, from) {
+  const pc = peers.get(from);
+  if (!pc) return;
+
+  await pc.addIceCandidate(candidate);
 }
 
 /* =========================
    END CALL
 ========================= */
 export function endVideoCall() {
-  localStream?.getTracks().forEach((t) => t.stop());
-  remoteStream?.getTracks().forEach((t) => t.stop());
-  pc?.close();
+  peers.forEach((pc) => pc.close());
+  peers.clear();
 
-  pc = null;
+  localStream?.getTracks().forEach((t) => t.stop());
   localStream = null;
-  remoteStream = null;
-  currentPeer = null;
 }
