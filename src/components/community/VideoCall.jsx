@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import socket from "../../services/socket";
 import { useCall } from "../../context/CallContext";
 import VideoGrid from "./video/VideoGrid";
+import { startVideoCall } from "../../services/webrtcVideo";
 import {
   answerVideoCall,
   handleVideoAnswer,
@@ -45,9 +46,11 @@ const VideoCall = ({ communityId, channelId }) => {
       socketIds.forEach((id) => addParticipant(id));
     };
 
-    const handleJoined = ({ socketId, user }) => {
-      addParticipant(socketId, user);
-    };
+    const handleJoined = async ({ socketId, user }) => {
+  addParticipant(socketId, user);
+  await startVideoCall([socketId]);
+};
+
 
     const handleLeft = ({ socketId }) => {
       removeParticipant(socketId);
