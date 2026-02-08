@@ -2,7 +2,6 @@
 import React, { useEffect, useRef } from "react";
 import socket from "../../services/socket";
 import {
-  startVideoCall,
   answerVideoCall,
   handleVideoAnswer,
   handleVideoIce,
@@ -12,6 +11,7 @@ import { useCall } from "../../context/CallContext";
 
 const VideoCall = () => {
   const { inCall, callType, remoteStream, setRemoteStream } = useCall();
+
   const remoteVideoRef = useRef(null);
 
   /* =========================
@@ -25,30 +25,31 @@ const VideoCall = () => {
      SOCKET SIGNALING
   ========================= */
   useEffect(() => {
-    // Someone joins after me → I create offer
-    socket.on("call:user-joined", async ({ socketId }) => {
-      await startVideoCall([socketId]);
-    });
+  // When someone joins AFTER me → I create offer
+  socket.on("call:user-joined", async ({ socketId }) => {
+    await startVideoCall([socketId]);
+  });
 
-    socket.on("call:offer", async ({ offer, from }) => {
-      await answerVideoCall(offer, from);
-    });
+  socket.on("call:offer", async ({ offer, from }) => {
+    await answerVideoCall(offer, from);
+  });
 
-    socket.on("call:answer", async ({ answer, from }) => {
-      await handleVideoAnswer(answer, from);
-    });
+  socket.on("call:answer", ({ answer, from }) => {
+    handleVideoAnswer(answer, from);
+  });
 
-    socket.on("call:ice", async ({ candidate, from }) => {
-      await handleVideoIce(candidate, from);
-    });
+  socket.on("call:ice", ({ candidate, from }) => {
+    handleVideoIce(candidate, from);
+  });
 
-    return () => {
-      socket.off("call:user-joined");
-      socket.off("call:offer");
-      socket.off("call:answer");
-      socket.off("call:ice");
-    };
-  }, []);
+  return () => {
+    socket.off("call:user-joined");
+    socket.off("call:offer");
+    socket.off("call:answer");
+    socket.off("call:ice");
+  };
+}, []);
+
 
   /* =========================
      ATTACH REMOTE STREAM
@@ -56,7 +57,9 @@ const VideoCall = () => {
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
-      remoteVideoRef.current.play().catch(() => {});
+      remoteVideoRef.current
+        .play()
+        .catch(() => {});
     }
   }, [remoteStream]);
 
@@ -70,9 +73,8 @@ const VideoCall = () => {
         ref={remoteVideoRef}
         autoPlay
         playsInline
-        muted={false}
         style={{
-          width: "260px",
+          width: "240px",
           background: "#000",
           borderRadius: "8px",
         }}

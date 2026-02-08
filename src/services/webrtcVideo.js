@@ -1,19 +1,15 @@
 // src/services/webrtcVideo.js
 import socket from "./socket";
 
-/* =========================
-   GLOBAL STATE
-========================= */
-let localStream = null;
-let remoteStream = null;
-let setRemoteStreamFn = null;
-
-// One PeerConnection per peer
-const peerConnections = {};
-
 const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
+
+// socketId -> RTCPeerConnection
+const peers = new Map();
+
+let localStream = null;
+let setRemoteStreamFn = null;
 
 /* =========================
    REGISTER REMOTE STREAM SETTER
@@ -23,48 +19,54 @@ export function registerRemoteStreamSetter(fn) {
 }
 
 /* =========================
+   GET LOCAL MEDIA (ONCE)
+========================= */
+async function getLocalStream() {
+  if (localStream) return localStream;
+
+  localStream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true,
+  });
+
+  return localStream;
+}
+
+/* =========================
    CREATE PEER CONNECTION
 ========================= */
-function createPeerConnection(peerId) {
+function createPeerConnection(remoteSocketId) {
   const pc = new RTCPeerConnection(ICE_SERVERS);
 
   pc.onicecandidate = (e) => {
     if (e.candidate) {
       socket.emit("call:ice", {
-        to: peerId,
+        to: remoteSocketId,
         candidate: e.candidate,
       });
     }
   };
 
   pc.ontrack = (e) => {
-    if (!remoteStream) {
-      remoteStream = new MediaStream();
-      setRemoteStreamFn?.(remoteStream);
-    }
-    remoteStream.addTrack(e.track);
+    const stream = e.streams[0];
+    setRemoteStreamFn?.(stream);
   };
 
-  peerConnections[peerId] = pc;
+  peers.set(remoteSocketId, pc);
   return pc;
 }
 
 /* =========================
    START VIDEO CALL (CALLER)
 ========================= */
-export async function startVideoCall(peerIds) {
-  if (!localStream) {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
-  }
+export async function startVideoCall(existingPeers) {
+  const stream = await getLocalStream();
 
-  for (const peerId of peerIds) {
+  for (const peerId of existingPeers) {
     const pc = createPeerConnection(peerId);
 
-    localStream.getTracks().forEach((track) =>
-      pc.addTrack(track, localStream)
+    stream.getTracks().forEach((track) =>
+      pc.addTrack(track, stream)
     );
 
     const offer = await pc.createOffer();
@@ -76,24 +78,18 @@ export async function startVideoCall(peerIds) {
     });
   }
 
-  return localStream;
+  return stream;
 }
 
 /* =========================
-   ANSWER VIDEO CALL (RECEIVER)
+   ANSWER VIDEO CALL
 ========================= */
 export async function answerVideoCall(offer, from) {
-  if (!localStream) {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
-  }
-
+  const stream = await getLocalStream();
   const pc = createPeerConnection(from);
 
-  localStream.getTracks().forEach((track) =>
-    pc.addTrack(track, localStream)
+  stream.getTracks().forEach((track) =>
+    pc.addTrack(track, stream)
   );
 
   await pc.setRemoteDescription(offer);
@@ -106,42 +102,36 @@ export async function answerVideoCall(offer, from) {
     answer,
   });
 
-  return localStream;
+  return stream;
 }
 
 /* =========================
    HANDLE ANSWER
 ========================= */
 export async function handleVideoAnswer(answer, from) {
-  const pc = peerConnections[from];
-  if (pc) {
-    await pc.setRemoteDescription(answer);
-  }
+  const pc = peers.get(from);
+  if (!pc) return;
+
+  await pc.setRemoteDescription(answer);
 }
 
 /* =========================
    HANDLE ICE
 ========================= */
 export async function handleVideoIce(candidate, from) {
-  const pc = peerConnections[from];
-  if (pc && candidate) {
-    await pc.addIceCandidate(candidate);
-  }
+  const pc = peers.get(from);
+  if (!pc) return;
+
+  await pc.addIceCandidate(candidate);
 }
 
 /* =========================
    END CALL
 ========================= */
 export function endVideoCall() {
-  Object.values(peerConnections).forEach((pc) => pc.close());
-
-  Object.keys(peerConnections).forEach(
-    (k) => delete peerConnections[k]
-  );
+  peers.forEach((pc) => pc.close());
+  peers.clear();
 
   localStream?.getTracks().forEach((t) => t.stop());
-  remoteStream?.getTracks().forEach((t) => t.stop());
-
   localStream = null;
-  remoteStream = null;
 }
