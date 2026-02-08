@@ -1,3 +1,4 @@
+// src/components/livekit/LiveKitRoomView.jsx
 import React, { useEffect, useState } from "react";
 import {
   LiveKitRoom,
@@ -15,33 +16,77 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
 
   const [token, setToken] = useState(null);
   const [serverUrl, setServerUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const roomName = `call:${communityId}:${channelId}`;
+  // 🔑 MUST be a SIMPLE room name (no colons)
+  const roomName = `community-${communityId}-${channelId}`;
 
   /* =========================
-     FETCH TOKEN
+     FETCH LIVEKIT TOKEN
   ========================= */
   useEffect(() => {
-    if (!inCall || callType !== "video") return;
+    if (!inCall || callType !== "video" || !user) return;
+
+    let cancelled = false;
 
     const fetchToken = async () => {
-      const res = await API.post("/livekit/token", {
-        roomName,
-        userId: user._id,
-        userName: user.name,
-        isHost: true, // safe for now
-      });
+      try {
+        setLoading(true);
 
-      setToken(res.data.token);
-      setServerUrl(res.data.url);
+        const res = await API.post("/livekit/token", {
+          roomName,
+          userId: user._id,
+          userName: user.name,
+          isHost: true, // fine for now
+        });
+
+        // 🔥 CRITICAL FIX — destructure properly
+        const { token, url } = res.data;
+
+        if (!cancelled) {
+          setToken(token);       // MUST be string
+          setServerUrl(url);     // MUST be wss://...
+        }
+      } catch (err) {
+        console.error("❌ LiveKit token fetch failed:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
 
-    fetchToken().catch(console.error);
+    fetchToken();
+
+    return () => {
+      cancelled = true;
+    };
   }, [inCall, callType, roomName, user]);
 
+  /* =========================
+     GUARDS
+  ========================= */
   if (!inCall || callType !== "video") return null;
-  if (!token || !serverUrl) return <p>Joining video call…</p>;
 
+  if (loading || !token || !serverUrl) {
+    return (
+      <div
+        style={{
+          height: "420px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#0f172a",
+          color: "#fff",
+          borderRadius: "12px",
+        }}
+      >
+        Joining video call…
+      </div>
+    );
+  }
+
+  /* =========================
+     RENDER LIVEKIT ROOM
+  ========================= */
   return (
     <div
       style={{
@@ -52,8 +97,8 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
       }}
     >
       <LiveKitRoom
-        token={token}
-        serverUrl={serverUrl}
+        token={token}                 // ✅ STRING JWT
+        serverUrl={serverUrl}         // ✅ wss://xxxx.livekit.cloud
         connect={true}
         video={true}
         audio={true}
@@ -61,7 +106,7 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
         data-lk-theme="default"
         style={{ height: "100%" }}
       >
-        {/* ✅ ONE COMPONENT HANDLES EVERYTHING */}
+        {/* 🔥 Handles camera, mic, grid, controls */}
         <VideoConference />
       </LiveKitRoom>
     </div>
