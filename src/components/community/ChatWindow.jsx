@@ -6,6 +6,8 @@ import React, {
   useRef,
 } from "react";
 import ChatSearchBar from "./ChatSearchBar";
+import LiveKitButton from "../livekit/LiveKitButton";
+import LiveKitRoomView from "../livekit/LiveKitRoomView";
 import API from "../../services/api";
 import MessageBubble from "./MessageBubble";
 import socket from "../../services/socket";
