@@ -6,5 +6,8 @@ import "./index.css";
 import AuthProvider from "./context/AuthContext";
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
-
-root.render(<App />);
+root.render(
+  <BrowserRouter>
+    <App />
+  </BrowserRouter>
+);
