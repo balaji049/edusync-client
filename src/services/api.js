@@ -7,11 +7,17 @@ const API = axios.create({
       : "/api",
 });
 
-
-
+/**
+ * ⚠️ DO NOT attach Authorization header to LiveKit token requests
+ */
 API.interceptors.request.use((req) => {
-  const token = localStorage.getItem("token");
-  if (token) req.headers.Authorization = `Bearer ${token}`;
+  // Skip auth header for LiveKit
+  if (!req.url?.includes("/livekit/token")) {
+    const token = localStorage.getItem("token");
+    if (token) {
+      req.headers.Authorization = `Bearer ${token}`;
+    }
+  }
   return req;
 });
 

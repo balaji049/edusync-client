@@ -18,12 +18,9 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
   const [serverUrl, setServerUrl] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // 🔑 MUST be a SIMPLE room name (no colons)
+  // ✅ SIMPLE room name (LiveKit safe)
   const roomName = `community-${communityId}-${channelId}`;
 
-  /* =========================
-     FETCH LIVEKIT TOKEN
-  ========================= */
   useEffect(() => {
     if (!inCall || callType !== "video" || !user) return;
 
@@ -33,19 +30,23 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
       try {
         setLoading(true);
 
-        const res = await API.post("/livekit/token", {
+        const response = await API.post("/livekit/token", {
           roomName,
           userId: user._id,
           userName: user.name,
-          isHost: true, // fine for now
+          isHost: true,
         });
 
-        // 🔥 CRITICAL FIX — destructure properly
-        const { token, url } = res.data;
+        // 🔒 HARD GUARANTEE
+        const tokenString = response.data?.token;
+        const urlString = response.data?.url;
+
+        console.log("LIVEKIT TOKEN TYPE:", typeof tokenString);
+        console.log("LIVEKIT URL:", urlString);
 
         if (!cancelled) {
-          setToken(token);       // MUST be string
-          setServerUrl(url);     // MUST be wss://...
+          setToken(tokenString);
+          setServerUrl(urlString);
         }
       } catch (err) {
         console.error("❌ LiveKit token fetch failed:", err);
@@ -61,9 +62,6 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
     };
   }, [inCall, callType, roomName, user]);
 
-  /* =========================
-     GUARDS
-  ========================= */
   if (!inCall || callType !== "video") return null;
 
   if (loading || !token || !serverUrl) {
@@ -84,9 +82,6 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
     );
   }
 
-  /* =========================
-     RENDER LIVEKIT ROOM
-  ========================= */
   return (
     <div
       style={{
@@ -97,8 +92,8 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
       }}
     >
       <LiveKitRoom
-        token={token}                 // ✅ STRING JWT
-        serverUrl={serverUrl}         // ✅ wss://xxxx.livekit.cloud
+        token={token}              // ✅ STRING
+        serverUrl={serverUrl}      // ✅ wss://xxx.livekit.cloud
         connect={true}
         video={true}
         audio={true}
@@ -106,7 +101,6 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
         data-lk-theme="default"
         style={{ height: "100%" }}
       >
-        {/* 🔥 Handles camera, mic, grid, controls */}
         <VideoConference />
       </LiveKitRoom>
     </div>
