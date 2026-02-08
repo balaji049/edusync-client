@@ -62,10 +62,7 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
         data-lk-theme="default"
         style={{ height: "100%" }}
       >
-        <GridLayout
-          tracks="all"
-          style={{ height: "100%" }}
-        >
+        <GridLayout style={{ height: "100%" }}>
           <ParticipantTile />
         </GridLayout>
 
