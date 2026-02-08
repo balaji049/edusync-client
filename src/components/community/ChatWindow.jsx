@@ -10,26 +10,17 @@ import API from "../../services/api";
 import MessageBubble from "./MessageBubble";
 import socket from "../../services/socket";
 import { AuthContext } from "../../context/AuthContext";
-import CallButton from "./CallButton";
-import VoiceCall from "./VoiceCall";
-import VideoButton from "./VideoButton";
-//import VideoRoom from "./VideoRoom";
-
-
-
 
 /* ============================
    NORMALIZE MESSAGE FORMAT
-   (FINAL – SAFE & CORRECT)
 ============================ */
 const normalizeMessage = (m) => ({
   _id: m._id,
   text: m.text,
-  type: m.type || "text",          // text | file | image | ai | system
+  type: m.type || "text", // text | file | image | ai | system
   channel: m.channel,
   timestamp: m.timestamp,
 
-  // sender identity
   senderId:
     m.role === "ai"
       ? "ai"
@@ -40,9 +31,7 @@ const normalizeMessage = (m) => ({
       ? "EduSync AI"
       : m.senderName || m.sender?.name || "Unknown",
 
-  senderRole: m.role || "user",    // user | ai | system
-
-  // attached resource (file/image)
+  senderRole: m.role || "user",
   resource: m.resource || null,
 });
 
@@ -119,37 +108,31 @@ const ChatWindow = ({ communityId, channelId }) => {
       socket.off("message-received", handleMessage);
   }, [channelId, user?._id]);
 
-
-
   /* ============================
-   📡 LIVE RESOURCE COUNTER UPDATE
-   (RUN ONCE)
-============================ */
-useEffect(() => {
-  const handleResourceUpdate = (data) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.resource?._id === data.resourceId
-          ? {
-              ...m,
-              resource: {
-                ...m.resource,
-                views: data.views,
-                downloads: data.downloads,
-              },
-            }
-          : m
-      )
-    );
-  };
+     RESOURCE COUNTER UPDATES
+  ============================ */
+  useEffect(() => {
+    const handleResourceUpdate = (data) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.resource?._id === data.resourceId
+            ? {
+                ...m,
+                resource: {
+                  ...m.resource,
+                  views: data.views,
+                  downloads: data.downloads,
+                },
+              }
+            : m
+        )
+      );
+    };
 
-  socket.on("resource-updated", handleResourceUpdate);
-
-  return () => {
-    socket.off("resource-updated", handleResourceUpdate);
-  };
-}, []);
-
+    socket.on("resource-updated", handleResourceUpdate);
+    return () =>
+      socket.off("resource-updated", handleResourceUpdate);
+  }, []);
 
   /* ============================
      TYPING INDICATOR
@@ -194,11 +177,6 @@ useEffect(() => {
     });
   };
 
-
-
-
-
-
   /* ============================
      HANDLE TYPING
   ============================ */
@@ -215,7 +193,7 @@ useEffect(() => {
   };
 
   /* ============================
-     FILE UPLOAD (RESOURCE → MESSAGE)
+     FILE UPLOAD
   ============================ */
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -231,16 +209,6 @@ useEffect(() => {
     );
 
     fileInputRef.current.value = "";
-  };
-
-  /* ============================
-     JUMP TO MESSAGE
-  ============================ */
-  const jumpToMessage = (id) => {
-    messageRefs.current[id]?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
   };
 
   const displayMessages = searchResults ?? messages;
@@ -263,32 +231,15 @@ useEffect(() => {
         </button>
       )}
 
-    {/* 🔊 CALL CONTROLS (CHANNEL LEVEL) */}
-<div className="voice-call-header" style={{ display: "flex", gap: "8px" }}>
-  <CallButton
-    communityId={communityId}
-    channelId={channelId}
-  />
-
-  <VideoButton
-    communityId={communityId}
-    channelId={channelId}
-  />
-</div>
-
-{/* 🎥 VIDEO ROOM (ABOVE MESSAGES) 
-<VideoRoom
-  communityId={communityId}
-  channelId={channelId}
-/>  */}
-
-{/* 🔊 VOICE CALL (AUDIO ONLY) */}
-<VoiceCall
-  communityId={communityId}
-  channelId={channelId}
-/>
-
-
+      {/* 🚫 CALL PLACEHOLDER (DISABLED) */}
+      <div style={{ margin: "10px 0" }}>
+        <button disabled style={{ marginRight: "8px" }}>
+          Voice Call (Disabled)
+        </button>
+        <button disabled>
+          Video Call (Disabled)
+        </button>
+      </div>
 
       {/* 💬 MESSAGES */}
       <div className="chat-messages">
@@ -298,37 +249,28 @@ useEffect(() => {
             ref={(el) =>
               (messageRefs.current[msg._id] = el)
             }
-            onClick={() =>
-              searchResults && jumpToMessage(msg._id)
-            }
           >
             <MessageBubble
-  type={msg.type}
-  name={msg.senderName}
-  isSelf={msg.senderId === user?._id}
-  resource={msg.resource}
->
-  {/* TEXT CONTENT */}
-  {msg.text && (
-    searchResults ? (
-      <span
-        dangerouslySetInnerHTML={{
-          __html: highlightText(msg.text, searchQuery),
-        }}
-      />
-    ) : (
-      <span>{msg.text}</span>
-    )
-  )}
-
-  {/* CHANNEL TAG (SEARCH MODE ONLY) */}
-  {searchResults && (
-    <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>
-      #{msg.channel}
-    </div>
-  )}
-</MessageBubble>
-
+              type={msg.type}
+              name={msg.senderName}
+              isSelf={msg.senderId === user?._id}
+              resource={msg.resource}
+            >
+              {msg.text && (
+                searchResults ? (
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: highlightText(
+                        msg.text,
+                        searchQuery
+                      ),
+                    }}
+                  />
+                ) : (
+                  <span>{msg.text}</span>
+                )
+              )}
+            </MessageBubble>
           </div>
         ))}
         <div ref={bottomRef} />
@@ -369,7 +311,6 @@ useEffect(() => {
 };
 
 export default ChatWindow;
-
 
 
 

@@ -8,9 +8,9 @@ import React, {
   CallContext is the SINGLE SOURCE OF TRUTH
   for voice + video call state.
 
-  It does NOT know about:
-  - WebRTC internals
-  - socket.io logic
+  ❌ No WebRTC logic
+  ❌ No socket.io logic
+  ✅ Pure state + intent only
 */
 
 const CallContext = createContext(null);
@@ -23,7 +23,7 @@ export const CallProvider = ({ children }) => {
   const [callType, setCallType] = useState(null); // "voice" | "video"
   const [callRoom, setCallRoom] = useState(null);
 
-  /* 🔥 HOST (ONLY OFFER CREATOR) */
+  /* 🔥 HOST (ONLY OFFER / PUBLISH OWNER) */
   const [callHost, setCallHost] = useState(null); // socketId
 
   /* =========================
@@ -37,36 +37,44 @@ export const CallProvider = ({ children }) => {
   ========================= */
   const [localStream, setLocalStream] = useState(null);
 
-  // Voice (single remote stream)
+  // Voice (1 remote stream)
   const [remoteStream, setRemoteStream] = useState(null);
 
-  // Video (mesh)
+  // Video (mesh / SFU compatible)
   const [videoStreams, setVideoStreams] = useState(new Map());
 
   /* =========================
      CALL LIFECYCLE
   ========================= */
-  const startCall = (type, room) => {
+  const startCall = (type, room, hostSocketId = null) => {
+    // HARD GUARANTEE: only one call at a time
     if (inCall) return;
 
     setInCall(true);
     setCallType(type);
     setCallRoom(room);
+    setCallHost(hostSocketId);
   };
 
   const endCall = () => {
+    // Reset UI state FIRST
     setInCall(false);
     setCallType(null);
     setCallRoom(null);
     setCallHost(null);
 
+    // Stop local camera/mic
     localStream?.getTracks().forEach((t) => t.stop());
+
+    // Stop remote voice
     remoteStream?.getTracks().forEach((t) => t.stop());
 
+    // Stop all remote videos
     videoStreams.forEach((stream) => {
       stream.getTracks().forEach((t) => t.stop());
     });
 
+    // Clear memory
     setLocalStream(null);
     setRemoteStream(null);
     setVideoStreams(new Map());

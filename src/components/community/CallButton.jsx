@@ -1,4 +1,4 @@
-// src/components/community/CallButton.jsx
+/* src/components/community/CallButton.jsx
 import React from "react";
 import socket from "../../services/socket";
 import { useCall } from "../../context/CallContext";
@@ -10,7 +10,7 @@ const CallButton = ({ communityId, channelId, user }) => {
   const disabled = inCall && callType !== "voice";
 
   const handleJoin = async () => {
-    // 🔥 permission must be inside click
+    //  permission must be inside click
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
     });
@@ -53,3 +53,4 @@ const CallButton = ({ communityId, channelId, user }) => {
 };
 
 export default CallButton;
+*/
