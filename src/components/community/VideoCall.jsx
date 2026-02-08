@@ -3,7 +3,6 @@ import socket from "../../services/socket";
 import { useCall } from "../../context/CallContext";
 import VideoGrid from "./video/VideoGrid";
 import {
-  startVideoCall,
   answerVideoCall,
   handleVideoAnswer,
   handleVideoIce,
@@ -21,11 +20,14 @@ const VideoCall = ({ communityId, channelId }) => {
     setVideoStream,
   } = useCall();
 
-  /* 🔊 audio elements per peer (for remote audio) */
+  /* =========================
+     REMOTE AUDIO ELEMENTS
+     (one per peer)
+  ========================= */
   const audioRefs = useRef(new Map());
 
   /* =========================
-     REGISTER VIDEO STREAM SETTER
+     REGISTER STREAM SETTER
      (WebRTC → CallContext)
   ========================= */
   useEffect(() => {
@@ -33,27 +35,29 @@ const VideoCall = ({ communityId, channelId }) => {
   }, [setVideoStream]);
 
   /* =========================
-     SOCKET → PARTICIPANTS
+     SOCKET → PARTICIPANTS ONLY
+     (NO WebRTC here)
   ========================= */
   useEffect(() => {
     if (!inCall || callType !== "video") return;
 
-    const handleExisting = async (socketIds) => {
+    const handleExisting = (socketIds) => {
       socketIds.forEach((id) => addParticipant(id));
-
-      if (socketIds.length > 0) {
-        await startVideoCall(socketIds);
-      }
     };
 
-    const handleJoined = async ({ socketId, user }) => {
+    const handleJoined = ({ socketId, user }) => {
       addParticipant(socketId, user);
-      await startVideoCall([socketId]);
     };
 
     const handleLeft = ({ socketId }) => {
       removeParticipant(socketId);
-      audioRefs.current.delete(socketId);
+
+      const audio = audioRefs.current.get(socketId);
+      if (audio) {
+        audio.pause();
+        audio.srcObject = null;
+        audioRefs.current.delete(socketId);
+      }
     };
 
     socket.on("call:existing-users", handleExisting);
@@ -68,8 +72,6 @@ const VideoCall = ({ communityId, channelId }) => {
   }, [
     inCall,
     callType,
-    communityId,
-    channelId,
     addParticipant,
     removeParticipant,
   ]);
@@ -100,7 +102,8 @@ const VideoCall = ({ communityId, channelId }) => {
   }, [inCall, callType]);
 
   /* =========================
-     ATTACH REMOTE AUDIO (CRITICAL)
+     ATTACH REMOTE AUDIO
+     (Zoom / Discord pattern)
   ========================= */
   useEffect(() => {
     participants.forEach((participant) => {
@@ -115,8 +118,8 @@ const VideoCall = ({ communityId, channelId }) => {
 
         audio
           .play()
-          .catch((err) =>
-            console.warn("🔇 Audio autoplay blocked", err)
+          .catch(() =>
+            console.warn("🔇 Audio autoplay blocked")
           );
 
         audioRefs.current.set(participant.socketId, audio);

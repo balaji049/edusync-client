@@ -1,7 +1,10 @@
 import React, { useRef } from "react";
 import socket from "../../services/socket";
 import { useCall } from "../../context/CallContext";
-import { startVideoCall, endVideoCall } from "../../services/webrtcVideo";
+import {
+  startVideoCall,
+  endVideoCall,
+} from "../../services/webrtcVideo";
 
 const VideoButton = ({ communityId, channelId }) => {
   const {
@@ -15,32 +18,55 @@ const VideoButton = ({ communityId, channelId }) => {
   const localVideoRef = useRef(null);
 
   const handleJoin = async () => {
-    // 1️⃣ Join signaling room
+    const room = `call:${communityId}:${channelId}`;
+
+    /* =========================
+       1️⃣ ENTER VIDEO MODE FIRST
+       (prevents race conditions)
+    ========================= */
+    startCall("video", room);
+
+    /* =========================
+       2️⃣ JOIN SIGNALING ROOM
+    ========================= */
     socket.emit("call:join", {
       communityId,
       channelId,
     });
 
-    // 2️⃣ Wait for existing users
+    /* =========================
+       3️⃣ HANDLE EXISTING USERS
+    ========================= */
     socket.once("call:existing-users", async (users) => {
-      // 3️⃣ Start WebRTC if peers exist
+      // Start WebRTC (even if users is empty)
       const stream = await startVideoCall(users);
 
-      // 4️⃣ Attach local preview
+      // Store local stream in context
+      setLocalStream(stream);
+
+      // Attach local preview
       if (localVideoRef.current && stream) {
         localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true;
-        localVideoRef.current.play().catch(() => {});
-      }
+        localVideoRef.current.muted = true; // local preview only
+        localVideoRef.current.playsInline = true;
 
-      // 5️⃣ Update CallContext
-      startCall("video", `${communityId}:${channelId}`);
+        try {
+          await localVideoRef.current.play();
+        } catch (err) {
+          console.warn("Local video autoplay blocked", err);
+        }
+      }
     });
   };
 
   const handleLeave = () => {
     endVideoCall();
-    socket.emit("call:leave", { communityId, channelId });
+
+    socket.emit("call:leave", {
+      communityId,
+      channelId,
+    });
+
     endCall();
   };
 
@@ -50,7 +76,9 @@ const VideoButton = ({ communityId, channelId }) => {
         onClick={inCall && callType === "video" ? handleLeave : handleJoin}
         style={{
           background:
-            inCall && callType === "video" ? "#dc2626" : "#2563eb",
+            inCall && callType === "video"
+              ? "#dc2626"
+              : "#2563eb",
           color: "#fff",
           padding: "6px 12px",
           borderRadius: "6px",
@@ -62,7 +90,7 @@ const VideoButton = ({ communityId, channelId }) => {
           : "Join Video Call"}
       </button>
 
-      {/* Local video preview */}
+      {/* Local camera preview */}
       {inCall && callType === "video" && (
         <video
           ref={localVideoRef}

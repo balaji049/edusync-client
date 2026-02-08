@@ -8,7 +8,7 @@ const ICE_SERVERS = {
 };
 
 /* =========================
-   STATE (MODULE SINGLETON)
+   MODULE STATE
 ========================= */
 
 // peerSocketId -> RTCPeerConnection
@@ -17,7 +17,7 @@ const peerConnections = new Map();
 // peerSocketId -> MediaStream
 const remoteStreams = new Map();
 
-// peerSocketId -> ICE candidate queue
+// peerSocketId -> ICE candidates queue
 const pendingIce = new Map();
 
 let localStream = null;
@@ -25,7 +25,6 @@ let setVideoStreamFn = null;
 
 /* =========================
    REGISTER STREAM SETTER
-   (from CallContext)
 ========================= */
 export function registerVideoStreamSetter(fn) {
   setVideoStreamFn = fn;
@@ -49,12 +48,16 @@ async function getLocalStream() {
    CREATE PEER CONNECTION
 ========================= */
 function createPeerConnection(peerSocketId) {
+  if (peerConnections.has(peerSocketId)) {
+    return peerConnections.get(peerSocketId);
+  }
+
   const pc = new RTCPeerConnection(ICE_SERVERS);
 
   peerConnections.set(peerSocketId, pc);
   pendingIce.set(peerSocketId, []);
 
-  /* ICE → SIGNALING */
+  /* ICE → signaling */
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit("call:ice", {
@@ -64,18 +67,18 @@ function createPeerConnection(peerSocketId) {
     }
   };
 
-  /* REMOTE TRACKS */
-  pc.ontrack = ({ streams: [stream] }) => {
-  console.log("🎥 Remote stream received", stream);
-  console.log("🎥 Video tracks:", stream.getVideoTracks());
-  console.log("🎧 Audio tracks:", stream.getAudioTracks());
+  /* Remote media */
+  pc.ontrack = (event) => {
+    const stream = event.streams[0];
+    if (!stream) return;
 
-  if (!remoteStreams.has(peerSocketId)) {
-    remoteStreams.set(peerSocketId, stream);
-    setVideoStreamFn?.(peerSocketId, stream);
-  }
-};
-
+    if (!remoteStreams.has(peerSocketId)) {
+      remoteStreams.set(peerSocketId, stream);
+      if (setVideoStreamFn) {
+        setVideoStreamFn(peerSocketId, stream);
+      }
+    }
+  };
 
   return pc;
 }
@@ -91,6 +94,7 @@ export async function startVideoCall(peerSocketIds = []) {
 
     const pc = createPeerConnection(peerId);
 
+    // Add local tracks FIRST (caller side)
     stream.getTracks().forEach((track) =>
       pc.addTrack(track, stream)
     );
@@ -108,27 +112,28 @@ export async function startVideoCall(peerSocketIds = []) {
 }
 
 /* =========================
-   ANSWER VIDEO CALL
+   ANSWER VIDEO CALL (FIXED)
 ========================= */
 export async function answerVideoCall(offer, from) {
   const stream = await getLocalStream();
-
   const pc = createPeerConnection(from);
 
+  // 🔥 STEP 1: set remote description FIRST
+  await pc.setRemoteDescription(offer);
+
+  // 🔥 STEP 2: add local tracks AFTER remote SDP
   stream.getTracks().forEach((track) =>
     pc.addTrack(track, stream)
   );
 
-  /* IMPORTANT ORDER */
-  await pc.setRemoteDescription(offer);
-
-  /* FLUSH ICE */
+  // 🔥 STEP 3: flush ICE queue
   const queued = pendingIce.get(from) || [];
   for (const candidate of queued) {
     await pc.addIceCandidate(candidate);
   }
   pendingIce.set(from, []);
 
+  // 🔥 STEP 4: create & send answer
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
 
@@ -141,17 +146,16 @@ export async function answerVideoCall(offer, from) {
 }
 
 /* =========================
-   HANDLE ANSWER
+   HANDLE ANSWER (CALLER)
 ========================= */
 export async function handleVideoAnswer(answer, from) {
   const pc = peerConnections.get(from);
   if (!pc) return;
 
-  if (pc.signalingState !== "stable") {
+  if (!pc.currentRemoteDescription) {
     await pc.setRemoteDescription(answer);
   }
 
-  /* FLUSH ICE */
   const queued = pendingIce.get(from) || [];
   for (const candidate of queued) {
     await pc.addIceCandidate(candidate);
@@ -160,7 +164,7 @@ export async function handleVideoAnswer(answer, from) {
 }
 
 /* =========================
-   HANDLE ICE (RACE SAFE)
+   HANDLE ICE
 ========================= */
 export async function handleVideoIce(candidate, from) {
   const pc = peerConnections.get(from);
@@ -174,7 +178,7 @@ export async function handleVideoIce(candidate, from) {
   try {
     await pc.addIceCandidate(candidate);
   } catch (err) {
-    console.warn("ICE ignored:", err);
+    console.warn("ICE error:", err);
   }
 }
 

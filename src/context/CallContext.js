@@ -2,7 +2,17 @@ import React, {
   createContext,
   useContext,
   useState,
+  useRef,
 } from "react";
+
+/*
+  CallContext is the SINGLE SOURCE OF TRUTH
+  for voice + video call state.
+
+  It does NOT know about:
+  - WebRTC internals
+  - socket.io events
+*/
 
 const CallContext = createContext(null);
 
@@ -12,54 +22,55 @@ export const CallProvider = ({ children }) => {
   ========================= */
   const [inCall, setInCall] = useState(false);
   const [callType, setCallType] = useState(null); // "voice" | "video"
-  const [callChannel, setCallChannel] = useState(null); // channelId or roomId
+  const [callRoom, setCallRoom] = useState(null); // call:<community>:<channel>
 
   /* =========================
-     PARTICIPANTS (WHO)
+     PARTICIPANTS
      socketId -> participant
   ========================= */
-  const [participants, setParticipants] = useState(
-    new Map()
-  );
+  const [participants, setParticipants] = useState(new Map());
 
   /* =========================
-     MEDIA STREAMS (HOW)
+     MEDIA STREAMS
   ========================= */
   const [localStream, setLocalStream] = useState(null);
 
-  // Voice (1-to-1)
+  // Voice (single remote stream)
   const [remoteStream, setRemoteStream] = useState(null);
 
   // Video (mesh)
-  const [videoStreams, setVideoStreams] = useState(
-    new Map()
-  );
+  const [videoStreams, setVideoStreams] = useState(new Map());
 
   /* =========================
      CALL LIFECYCLE
   ========================= */
-  const startCall = (type, channelId) => {
+  const startCall = (type, room) => {
+    // HARD GUARANTEE: only one call at a time
+    if (inCall) return;
+
     setInCall(true);
     setCallType(type);
-    setCallChannel(channelId);
+    setCallRoom(room);
   };
 
   const endCall = () => {
+    // UI state reset FIRST
     setInCall(false);
     setCallType(null);
-    setCallChannel(null);
+    setCallRoom(null);
 
-    // stop local media
+    // Stop local tracks (camera/mic)
     localStream?.getTracks().forEach((t) => t.stop());
 
-    // stop remote voice
+    // Stop remote voice
     remoteStream?.getTracks().forEach((t) => t.stop());
 
-    // stop all remote videos
+    // Stop all remote video streams
     videoStreams.forEach((stream) => {
       stream.getTracks().forEach((t) => t.stop());
     });
 
+    // Clear all state
     setLocalStream(null);
     setRemoteStream(null);
     setVideoStreams(new Map());
@@ -69,7 +80,7 @@ export const CallProvider = ({ children }) => {
   /* =========================
      PARTICIPANT MANAGEMENT
   ========================= */
-  const addParticipant = (socketId, user) => {
+  const addParticipant = (socketId, user = null) => {
     setParticipants((prev) => {
       if (prev.has(socketId)) return prev;
 
@@ -122,7 +133,7 @@ export const CallProvider = ({ children }) => {
         /* call state */
         inCall,
         callType,
-        callChannel,
+        callRoom,
 
         /* participants */
         participants,
