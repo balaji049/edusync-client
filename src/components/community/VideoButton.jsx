@@ -1,107 +1,63 @@
-import React, { useRef } from "react";
+// src/components/community/VideoButton.jsx
+import React, { useEffect, useRef } from "react";
 import socket from "../../services/socket";
-import { useCall } from "../../context/CallContext";
 import {
-  startVideoCall,
+  getLocalStream,
+  callPeer,
   endVideoCall,
 } from "../../services/webrtcVideo";
+import { useCall } from "../../context/CallContext";
 
-const VideoButton = ({ communityId, channelId, user }) => {
-  const {
-    inCall,
-    callType,
-    startCall,
-    endCall,
-    setLocalStream,
-  } = useCall();
-
+const VideoButton = ({ communityId, channelId }) => {
+  const { inCall, startCall, endCall, setLocalStream } = useCall();
   const localVideoRef = useRef(null);
 
-  /* =========================
-     JOIN VIDEO CALL
-  ========================= */
+  const roomId = `video:${communityId}:${channelId}`;
+
   const handleJoin = async () => {
-    const room = `call:${communityId}:${channelId}`;
+    const stream = await getLocalStream();
+    setLocalStream(stream);
 
-    // 1️⃣ Join call room (socket)
-    socket.emit("call:join", {
-      communityId,
-      channelId,
-      user,
-    });
+    localVideoRef.current.srcObject = stream;
+    localVideoRef.current.muted = true;
+    await localVideoRef.current.play();
 
-    // 2️⃣ Receive existing users → start WebRTC
-    socket.once("call:existing-users", async (peers) => {
-      const stream = await startVideoCall(peers);
-
-      setLocalStream(stream);
-
-      // 3️⃣ Local preview
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true;
-        localVideoRef.current.playsInline = true;
-        await localVideoRef.current.play();
-      }
-
-      // 4️⃣ Update global state
-      startCall("video", room);
-    });
+    socket.emit("call:join", { roomId });
+    startCall("video", roomId);
   };
 
-  /* =========================
-     LEAVE VIDEO CALL
-  ========================= */
   const handleLeave = () => {
-    socket.emit("call:leave", {
-      communityId,
-      channelId,
-    });
-
     endVideoCall();
     endCall();
   };
 
+  useEffect(() => {
+    socket.on("call:peers", (peers) => {
+      peers.forEach(callPeer);
+    });
+
+    socket.on("call:user-joined", callPeer);
+
+    return () => {
+      socket.off("call:peers");
+      socket.off("call:user-joined");
+    };
+  }, []);
+
   return (
-    <div style={{ marginTop: "8px" }}>
-      <button
-        onClick={
-          inCall && callType === "video"
-            ? handleLeave
-            : handleJoin
-        }
-        style={{
-          background:
-            inCall && callType === "video"
-              ? "#dc2626"
-              : "#2563eb",
-          color: "#fff",
-          padding: "8px 14px",
-          borderRadius: "6px",
-          border: "none",
-          cursor: "pointer",
-          fontWeight: "600",
-        }}
-      >
-        {inCall && callType === "video"
-          ? "Leave Video Call"
-          : "Join Video Call"}
+    <>
+      <button onClick={inCall ? handleLeave : handleJoin}>
+        {inCall ? "Leave Video Call" : "Join Video Call"}
       </button>
 
-      {/* ✅ LOCAL VIDEO PREVIEW */}
       <video
         ref={localVideoRef}
         autoPlay
         muted
         playsInline
-        style={{
-          width: "220px",
-          marginTop: "10px",
-          background: "#000",
-          borderRadius: "8px",
-        }}
+        style={{ width: "220px", background: "#000" }}
       />
-    </div>
+    </>
   );
 };
 

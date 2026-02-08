@@ -1,96 +1,85 @@
 // src/services/webrtcVideo.js
 import socket from "./socket";
 
-let pc = null;
-let localStream = null;
-let remoteStream = null;
-let setRemoteStream = null;
-let currentPeerId = null;
-
 const ICE_SERVERS = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
+let localStream = null;
+const peerConnections = {}; // socketId -> RTCPeerConnection
+let setRemoteStreamFn = null;
+
 /* =========================
-   REGISTER REMOTE STREAM SETTER
+   REGISTER REMOTE STREAM
 ========================= */
 export function registerRemoteStreamSetter(fn) {
-  setRemoteStream = fn;
+  setRemoteStreamFn = fn;
+}
+
+/* =========================
+   GET LOCAL MEDIA
+========================= */
+export async function getLocalStream() {
+  if (!localStream) {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+  }
+  return localStream;
 }
 
 /* =========================
    CREATE PEER CONNECTION
 ========================= */
-function createPeerConnection() {
-  pc = new RTCPeerConnection(ICE_SERVERS);
+function createPeerConnection(remoteSocketId) {
+  const pc = new RTCPeerConnection(ICE_SERVERS);
+
+  peerConnections[remoteSocketId] = pc;
 
   pc.onicecandidate = (e) => {
-    if (e.candidate && currentPeerId) {
+    if (e.candidate) {
       socket.emit("call:ice", {
-        to: currentPeerId,
+        to: remoteSocketId,
         candidate: e.candidate,
       });
     }
   };
 
   pc.ontrack = (e) => {
-    if (!remoteStream) {
-      remoteStream = new MediaStream();
-      setRemoteStream?.(remoteStream);
-    }
-    remoteStream.addTrack(e.track);
+    const stream = e.streams[0];
+    setRemoteStreamFn?.(stream);
   };
+
+  localStream.getTracks().forEach(track =>
+    pc.addTrack(track, localStream)
+  );
+
+  return pc;
 }
 
 /* =========================
-   START VIDEO CALL (CALLER)
+   CALLER → CREATE OFFER
 ========================= */
-export async function startVideoCall(peerSocketId) {
-  currentPeerId = peerSocketId;
-
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true,
-  });
-
-  createPeerConnection();
-
-  localStream.getTracks().forEach((track) => {
-    pc.addTrack(track, localStream);
-  });
+export async function callPeer(remoteSocketId) {
+  const pc = createPeerConnection(remoteSocketId);
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
 
   socket.emit("call:offer", {
-    to: peerSocketId,
+    to: remoteSocketId,
     offer,
   });
-
-  return localStream;
 }
 
 /* =========================
-   ANSWER VIDEO CALL (RECEIVER)
+   RECEIVER → HANDLE OFFER
 ========================= */
-export async function answerVideoCall(offer, from) {
-  currentPeerId = from;
+export async function handleOffer(from, offer) {
+  const pc = createPeerConnection(from);
 
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true,
-  });
-
-  createPeerConnection();
-
-  localStream.getTracks().forEach((track) => {
-    pc.addTrack(track, localStream);
-  });
-
-  await pc.setRemoteDescription(new RTCSessionDescription(offer));
+  await pc.setRemoteDescription(offer);
 
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
@@ -99,37 +88,37 @@ export async function answerVideoCall(offer, from) {
     to: from,
     answer,
   });
-
-  return localStream;
 }
 
 /* =========================
-   HANDLE ANSWER
+   CALLER → HANDLE ANSWER
 ========================= */
-export async function handleVideoAnswer(answer) {
+export async function handleAnswer(from, answer) {
+  const pc = peerConnections[from];
   if (!pc) return;
-  await pc.setRemoteDescription(new RTCSessionDescription(answer));
+
+  if (pc.signalingState !== "stable") {
+    await pc.setRemoteDescription(answer);
+  }
 }
 
 /* =========================
    HANDLE ICE
 ========================= */
-export async function handleVideoIce(candidate) {
-  if (candidate && pc) {
-    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+export async function handleIce(from, candidate) {
+  const pc = peerConnections[from];
+  if (pc) {
+    await pc.addIceCandidate(candidate);
   }
 }
 
 /* =========================
-   END CALL
+   CLEANUP
 ========================= */
 export function endVideoCall() {
-  localStream?.getTracks().forEach((t) => t.stop());
-  remoteStream?.getTracks().forEach((t) => t.stop());
-  pc?.close();
+  Object.values(peerConnections).forEach(pc => pc.close());
+  localStream?.getTracks().forEach(t => t.stop());
 
-  pc = null;
   localStream = null;
-  remoteStream = null;
-  currentPeerId = null;
+  Object.keys(peerConnections).forEach(k => delete peerConnections[k]);
 }
