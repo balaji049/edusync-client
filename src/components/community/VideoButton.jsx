@@ -9,23 +9,14 @@ const VideoButton = ({ communityId, channelId }) => {
   const localVideoRef = useRef(null);
 
   const handleJoin = async () => {
-    socket.emit("call:join", {
-      communityId,
-      channelId,
-    });
+  socket.emit("call:join", {
+    communityId,
+    channelId,
+  });
 
-    socket.once("call:existing-users", async (peers) => {
-      const stream = await startVideoCall(peers);
+  startCall("video", `${communityId}:${channelId}`);
+};
 
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true;
-        localVideoRef.current.play();
-      }
-
-      startCall("video", `${communityId}:${channelId}`);
-    });
-  };
 
   const handleLeave = () => {
     endVideoCall();
