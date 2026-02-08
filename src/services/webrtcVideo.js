@@ -66,11 +66,16 @@ function createPeerConnection(peerSocketId) {
 
   /* REMOTE TRACKS */
   pc.ontrack = ({ streams: [stream] }) => {
-    if (!remoteStreams.has(peerSocketId)) {
-      remoteStreams.set(peerSocketId, stream);
-      setVideoStreamFn?.(peerSocketId, stream);
-    }
-  };
+  console.log("🎥 Remote stream received", stream);
+  console.log("🎥 Video tracks:", stream.getVideoTracks());
+  console.log("🎧 Audio tracks:", stream.getAudioTracks());
+
+  if (!remoteStreams.has(peerSocketId)) {
+    remoteStreams.set(peerSocketId, stream);
+    setVideoStreamFn?.(peerSocketId, stream);
+  }
+};
+
 
   return pc;
 }

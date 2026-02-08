@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import socket from "../../services/socket";
 import { useCall } from "../../context/CallContext";
 import VideoGrid from "./video/VideoGrid";
@@ -15,10 +15,14 @@ const VideoCall = ({ communityId, channelId }) => {
     inCall,
     callType,
     participants,
+    videoStreams,
     addParticipant,
     removeParticipant,
     setVideoStream,
   } = useCall();
+
+  /* 🔊 audio elements per peer (for remote audio) */
+  const audioRefs = useRef(new Map());
 
   /* =========================
      REGISTER VIDEO STREAM SETTER
@@ -34,33 +38,32 @@ const VideoCall = ({ communityId, channelId }) => {
   useEffect(() => {
     if (!inCall || callType !== "video") return;
 
-    /* Existing users (when I join) */
-    socket.on("call:existing-users", async (socketIds) => {
+    const handleExisting = async (socketIds) => {
       socketIds.forEach((id) => addParticipant(id));
 
-      // 🔥 I am the caller for existing users
       if (socketIds.length > 0) {
         await startVideoCall(socketIds);
       }
-    });
+    };
 
-    /* New user joined */
-    socket.on("call:user-joined", async ({ socketId, user }) => {
+    const handleJoined = async ({ socketId, user }) => {
       addParticipant(socketId, user);
-
-      // 🔥 I initiate offer to the new user
       await startVideoCall([socketId]);
-    });
+    };
 
-    /* User left */
-    socket.on("call:user-left", ({ socketId }) => {
+    const handleLeft = ({ socketId }) => {
       removeParticipant(socketId);
-    });
+      audioRefs.current.delete(socketId);
+    };
+
+    socket.on("call:existing-users", handleExisting);
+    socket.on("call:user-joined", handleJoined);
+    socket.on("call:user-left", handleLeft);
 
     return () => {
-      socket.off("call:existing-users");
-      socket.off("call:user-joined");
-      socket.off("call:user-left");
+      socket.off("call:existing-users", handleExisting);
+      socket.off("call:user-joined", handleJoined);
+      socket.off("call:user-left", handleLeft);
     };
   }, [
     inCall,
@@ -77,17 +80,17 @@ const VideoCall = ({ communityId, channelId }) => {
   useEffect(() => {
     if (!inCall || callType !== "video") return;
 
-    socket.on("call:offer", async ({ offer, from }) => {
-      await answerVideoCall(offer, from);
-    });
+    socket.on("call:offer", ({ offer, from }) =>
+      answerVideoCall(offer, from)
+    );
 
-    socket.on("call:answer", async ({ answer, from }) => {
-      await handleVideoAnswer(answer, from);
-    });
+    socket.on("call:answer", ({ answer, from }) =>
+      handleVideoAnswer(answer, from)
+    );
 
-    socket.on("call:ice", async ({ candidate, from }) => {
-      await handleVideoIce(candidate, from);
-    });
+    socket.on("call:ice", ({ candidate, from }) =>
+      handleVideoIce(candidate, from)
+    );
 
     return () => {
       socket.off("call:offer");
@@ -95,6 +98,31 @@ const VideoCall = ({ communityId, channelId }) => {
       socket.off("call:ice");
     };
   }, [inCall, callType]);
+
+  /* =========================
+     ATTACH REMOTE AUDIO (CRITICAL)
+  ========================= */
+  useEffect(() => {
+    participants.forEach((participant) => {
+      const stream = videoStreams.get(participant.socketId);
+      if (!stream) return;
+
+      if (!audioRefs.current.has(participant.socketId)) {
+        const audio = document.createElement("audio");
+        audio.srcObject = stream;
+        audio.autoplay = true;
+        audio.playsInline = true;
+
+        audio
+          .play()
+          .catch((err) =>
+            console.warn("🔇 Audio autoplay blocked", err)
+          );
+
+        audioRefs.current.set(participant.socketId, audio);
+      }
+    });
+  }, [participants, videoStreams]);
 
   /* =========================
      RENDER
@@ -120,7 +148,6 @@ const VideoCall = ({ communityId, channelId }) => {
         🎥 Video Call — {participants.size} joined
       </div>
 
-      {/* Discord / Zoom style video grid */}
       <VideoGrid />
     </div>
   );

@@ -27,15 +27,21 @@ const VideoTile = ({ participant }) => {
     >
       {stream ? (
         <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
-        />
+  ref={videoRef}
+  autoPlay
+  playsInline
+  muted={false}   // 🔥 IMPORTANT
+  onLoadedMetadata={() => {
+    videoRef.current?.play().catch(console.warn);
+  }}
+  style={{
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    background: "#000",
+  }}
+/>
+
       ) : (
         <div
           style={{
