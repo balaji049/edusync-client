@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   LiveKitRoom,
-  GridLayout,
-  ParticipantTile,
-  ControlBar,
+  VideoConference,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 
@@ -31,7 +29,7 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
         roomName,
         userId: user._id,
         userName: user.name,
-        isHost: true,
+        isHost: true, // safe for now
       });
 
       setToken(res.data.token);
@@ -39,7 +37,7 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
     };
 
     fetchToken().catch(console.error);
-  }, [inCall, callType]);
+  }, [inCall, callType, roomName, user]);
 
   if (!inCall || callType !== "video") return null;
   if (!token || !serverUrl) return <p>Joining video call…</p>;
@@ -54,20 +52,17 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
       }}
     >
       <LiveKitRoom
-        video
-        audio
         token={token}
         serverUrl={serverUrl}
+        connect={true}
+        video={true}
+        audio={true}
         onDisconnected={endCall}
         data-lk-theme="default"
         style={{ height: "100%" }}
       >
-        {/* ✅ NO tracks PROP */}
-        <GridLayout style={{ height: "100%" }}>
-          <ParticipantTile />
-        </GridLayout>
-
-        <ControlBar />
+        {/* ✅ ONE COMPONENT HANDLES EVERYTHING */}
+        <VideoConference />
       </LiveKitRoom>
     </div>
   );
