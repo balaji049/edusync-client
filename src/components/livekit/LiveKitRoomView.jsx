@@ -21,7 +21,7 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
   const roomName = `call:${communityId}:${channelId}`;
 
   /* =========================
-     FETCH TOKEN FROM BACKEND
+     FETCH TOKEN
   ========================= */
   useEffect(() => {
     if (!inCall || callType !== "video") return;
@@ -31,7 +31,7 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
         roomName,
         userId: user._id,
         userName: user.name,
-        isHost: true, // 🔥 first user only (safe for now)
+        isHost: true,
       });
 
       setToken(res.data.token);
@@ -62,6 +62,7 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
         data-lk-theme="default"
         style={{ height: "100%" }}
       >
+        {/* ✅ NO tracks PROP */}
         <GridLayout style={{ height: "100%" }}>
           <ParticipantTile />
         </GridLayout>
