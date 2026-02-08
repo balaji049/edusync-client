@@ -105,7 +105,7 @@ const LiveKitRoomView = ({ communityId, channelId }) => {
       }}
     >
       <LiveKitRoom
-        token={token}           // ✅ STRING JWT
+        token={String(token)}           // ✅ STRING JWT
         serverUrl={serverUrl}   // ✅ wss://...
         connect={true}
         video={true}
