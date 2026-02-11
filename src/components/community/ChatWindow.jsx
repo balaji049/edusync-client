@@ -6,7 +6,6 @@ import React, {
   useRef,
 } from "react";
 import ChatSearchBar from "./ChatSearchBar";
-
 import API from "../../services/api";
 import MessageBubble from "./MessageBubble";
 import socket from "../../services/socket";
@@ -23,14 +22,17 @@ const normalizeMessage = (m) => ({
   type: m.type || "text",
   channel: m.channel,
   timestamp: m.timestamp,
+
   senderId:
     m.role === "ai"
       ? "ai"
       : m.senderId || m.sender?._id || null,
+
   senderName:
     m.role === "ai"
       ? "EduSync AI"
       : m.senderName || m.sender?.name || "Unknown",
+
   senderRole: m.role || "user",
   resource: m.resource || null,
 });
@@ -46,23 +48,8 @@ function highlightText(text, query) {
 
 const ChatWindow = ({ communityId, channelId }) => {
   const { user } = useContext(AuthContext);
+  const { startCall, endCall, callActive } = useCall();
 
-  /* ============================
-     🔐 SAFE CALL CONTEXT (FIX)
-  ============================ */
-  const callCtx = useCall?.() || {};
-
-  const {
-    startVideoCall = () => {},
-    endCall = () => {},
-    callActive = false,
-  } = callCtx;
-
-  const roomName = `community-${communityId}-channel-${channelId}`;
-
-  /* ============================
-     STATE
-  ============================ */
   const [messages, setMessages] = useState([]);
   const [searchResults, setSearchResults] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,6 +60,8 @@ const ChatWindow = ({ communityId, channelId }) => {
   const bottomRef = useRef(null);
   const typingTimeout = useRef(null);
   const fileInputRef = useRef(null);
+
+  const roomName = `community-${communityId}-channel-${channelId}`;
 
   /* ============================
      RESET ON CHANNEL CHANGE
@@ -109,6 +98,7 @@ const ChatWindow = ({ communityId, channelId }) => {
 
     const handleMessage = (msg) => {
       if (msg.channel !== channelId) return;
+
       const normalized = normalizeMessage(msg);
       setMessages((prev) =>
         prev.some((m) => m._id === normalized._id)
@@ -123,39 +113,11 @@ const ChatWindow = ({ communityId, channelId }) => {
   }, [channelId, user?._id]);
 
   /* ============================
-     RESOURCE COUNTER UPDATE
-  ============================ */
-  useEffect(() => {
-    const handleResourceUpdate = (data) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.resource?._id === data.resourceId
-            ? {
-                ...m,
-                resource: {
-                  ...m.resource,
-                  views: data.views,
-                  downloads: data.downloads,
-                },
-              }
-            : m
-        )
-      );
-    };
-
-    socket.on("resource-updated", handleResourceUpdate);
-    return () =>
-      socket.off("resource-updated", handleResourceUpdate);
-  }, []);
-
-  /* ============================
      TYPING INDICATOR
   ============================ */
   useEffect(() => {
     const handleTypingUpdate = (userIds) => {
-      setTypingUsers(
-        userIds.filter((id) => id !== user?._id)
-      );
+      setTypingUsers(userIds.filter((id) => id !== user?._id));
     };
 
     socket.on("typing:update", handleTypingUpdate);
@@ -167,9 +129,7 @@ const ChatWindow = ({ communityId, channelId }) => {
      AUTO SCROLL
   ============================ */
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, searchResults]);
 
   /* ============================
@@ -177,11 +137,14 @@ const ChatWindow = ({ communityId, channelId }) => {
   ============================ */
   const sendMessage = async () => {
     if (!text.trim()) return;
+
     const payload = text;
     setText("");
+
     socket.emit("typing:stop", {
       room: `${communityId}:${channelId}`,
     });
+
     await API.post("/messages/send", {
       communityId,
       channelId,
@@ -194,8 +157,10 @@ const ChatWindow = ({ communityId, channelId }) => {
   ============================ */
   const handleTyping = (value) => {
     setText(value);
+
     const room = `${communityId}:${channelId}`;
     socket.emit("typing:start", { room });
+
     clearTimeout(typingTimeout.current);
     typingTimeout.current = setTimeout(() => {
       socket.emit("typing:stop", { room });
@@ -207,34 +172,35 @@ const ChatWindow = ({ communityId, channelId }) => {
   ============================ */
   const handleFileUpload = async (file) => {
     if (!file) return;
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("communityId", communityId);
     formData.append("channelId", channelId);
+
     await API.post("/resources/upload-message", formData);
     fileInputRef.current.value = "";
   };
 
-  /* ============================
-     UI
-  ============================ */
   const displayMessages = searchResults ?? messages;
 
   return (
     <section className="chat-window">
+      {/* 🔍 SEARCH */}
       <ChatSearchBar
         communityId={communityId}
         onResults={setSearchResults}
         onQuery={setSearchQuery}
       />
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+      {/* 📞 CALL CONTROLS */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
         {!callActive ? (
           <>
-            <button onClick={() => startVideoCall(roomName)}>
+            <button onClick={() => startCall("video", roomName)}>
               🎥 Video Call
             </button>
-            <button onClick={() => startVideoCall(roomName)}>
+            <button onClick={() => startCall("audio", roomName)}>
               🔊 Audio Call
             </button>
           </>
@@ -243,54 +209,54 @@ const ChatWindow = ({ communityId, channelId }) => {
         )}
       </div>
 
+      {/* 🎥 JITSI CALL WINDOW */}
       <JitsiCall />
 
+      {/* 💬 MESSAGES */}
       <div className="chat-messages">
         {displayMessages.map((msg) => (
-          <div key={msg._id}>
+          <div
+            key={msg._id}
+            ref={(el) => (messageRefs.current[msg._id] = el)}
+          >
             <MessageBubble
               type={msg.type}
               name={msg.senderName}
               isSelf={msg.senderId === user?._id}
               resource={msg.resource}
             >
-              {msg.text &&
-                (searchResults ? (
+              {msg.text && (
+                searchResults ? (
                   <span
                     dangerouslySetInnerHTML={{
-                      __html: highlightText(
-                        msg.text,
-                        searchQuery
-                      ),
+                      __html: highlightText(msg.text, searchQuery),
                     }}
                   />
                 ) : (
                   <span>{msg.text}</span>
-                ))}
+                )
+              )}
             </MessageBubble>
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
 
+      {/* ✏️ INPUT */}
       <div className="chat-input">
         <input
           type="file"
           ref={fileInputRef}
-          onChange={(e) =>
-            handleFileUpload(e.target.files[0])
-          }
+          onChange={(e) => handleFileUpload(e.target.files[0])}
         />
+
         <input
           value={text}
-          onChange={(e) =>
-            handleTyping(e.target.value)
-          }
-          onKeyDown={(e) =>
-            e.key === "Enter" && sendMessage()
-          }
+          onChange={(e) => handleTyping(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder={`Message #${channelId}`}
         />
+
         <button onClick={sendMessage}>Send</button>
       </div>
     </section>
