@@ -263,13 +263,22 @@ useEffect(() => {
         </button>
       )}
 
-
-      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+{/* 🎥 VIDEO CALL CONTROLS */}
+<div
+  style={{
+    display: "flex",
+    gap: "8px",
+    marginBottom: "8px",
+  }}
+>
   <LiveKitButton
     communityId={communityId}
     channelId={channelId}
   />
 </div>
+
+{/* 🎥 VIDEO CALL VIEW */}
+<LiveKitRoomView />
 
 <LiveKitRoomView
   communityId={communityId}

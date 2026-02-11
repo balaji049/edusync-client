@@ -2,26 +2,20 @@ import React from "react";
 import { useCall } from "../../context/CallContext";
 
 const LiveKitButton = ({ communityId, channelId }) => {
-  const { inCall, callType, startCall, endCall } = useCall();
+  const { inCall, startVideoCall, endCall } = useCall();
 
-  const room = `call:${communityId}:${channelId}`;
-
-  const handleJoin = () => {
-    startCall("video", room);
-  };
-
-  const handleLeave = () => {
-    endCall();
-  };
+  const roomName = `community-${communityId}-${channelId}`;
 
   return (
     <button
-      onClick={inCall ? handleLeave : handleJoin}
+      onClick={() =>
+        inCall ? endCall() : startVideoCall(roomName)
+      }
       style={{
-        background: inCall ? "#dc2626" : "#2563eb",
-        color: "#fff",
         padding: "6px 12px",
         borderRadius: "6px",
+        background: inCall ? "#dc2626" : "#2563eb",
+        color: "#fff",
       }}
     >
       {inCall ? "Leave Video Call" : "Join Video Call"}
