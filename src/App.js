@@ -7,11 +7,11 @@ import AppRoutes from "./routes/AppRoutes";
 
 function App() {
   return (
-  
+    <CallProvider>
       <MainLayout>
         <AppRoutes />
       </MainLayout>
-  
+    </CallProvider>
   );
 }
 
