@@ -5,12 +5,12 @@ import React, {
 } from "react";
 
 /*
-  CallContext is the SINGLE SOURCE OF TRUTH
-  for voice + video call state.
-
-  ❌ No WebRTC logic
-  ❌ No socket.io logic
-  ✅ Pure state + intent only
+  CallContext = SINGLE SOURCE OF TRUTH
+  ----------------------------------
+  ✅ No WebRTC logic
+  ✅ No LiveKit logic
+  ✅ No socket.io logic
+  👉 Only CALL INTENT + STATE
 */
 
 const CallContext = createContext(null);
@@ -23,31 +23,38 @@ export const CallProvider = ({ children }) => {
   const [callType, setCallType] = useState(null); // "voice" | "video"
   const [callRoom, setCallRoom] = useState(null);
 
-  /* 🔥 HOST (ONLY OFFER / PUBLISH OWNER) */
-  const [callHost, setCallHost] = useState(null); // socketId
+  /* =========================
+     HOST (OPTIONAL, FUTURE)
+  ========================= */
+  const [callHost, setCallHost] = useState(null);
 
   /* =========================
-     PARTICIPANTS
-     socketId -> participant
+     PARTICIPANTS (OPTIONAL)
   ========================= */
   const [participants, setParticipants] = useState(new Map());
 
   /* =========================
-     MEDIA STREAMS
+     MEDIA (OPTIONAL / FUTURE)
   ========================= */
   const [localStream, setLocalStream] = useState(null);
-
-  // Voice (1 remote stream)
   const [remoteStream, setRemoteStream] = useState(null);
-
-  // Video (mesh / SFU compatible)
   const [videoStreams, setVideoStreams] = useState(new Map());
 
   /* =========================
-     CALL LIFECYCLE
+     🔥 LIVEKIT-FRIENDLY ACTIONS
   ========================= */
+
+  // ✅ Used by LiveKitButton
+  const startVideoCall = (roomName) => {
+    if (!roomName || inCall) return;
+
+    setInCall(true);
+    setCallType("video");
+    setCallRoom(roomName);
+  };
+
+  // (kept for compatibility with older code)
   const startCall = (type, room, hostSocketId = null) => {
-    // HARD GUARANTEE: only one call at a time
     if (inCall) return;
 
     setInCall(true);
@@ -57,19 +64,15 @@ export const CallProvider = ({ children }) => {
   };
 
   const endCall = () => {
-    // Reset UI state FIRST
+    // UI state first
     setInCall(false);
     setCallType(null);
     setCallRoom(null);
     setCallHost(null);
 
-    // Stop local camera/mic
+    // Stop any leftover media (safe even if null)
     localStream?.getTracks().forEach((t) => t.stop());
-
-    // Stop remote voice
     remoteStream?.getTracks().forEach((t) => t.stop());
-
-    // Stop all remote videos
     videoStreams.forEach((stream) => {
       stream.getTracks().forEach((t) => t.stop());
     });
@@ -82,18 +85,14 @@ export const CallProvider = ({ children }) => {
   };
 
   /* =========================
-     PARTICIPANT MANAGEMENT
+     PARTICIPANT HELPERS
+     (SAFE TO KEEP)
   ========================= */
   const addParticipant = (socketId, user = null) => {
     setParticipants((prev) => {
       if (prev.has(socketId)) return prev;
-
       const next = new Map(prev);
-      next.set(socketId, {
-        socketId,
-        user,
-        joinedAt: Date.now(),
-      });
+      next.set(socketId, { socketId, user });
       return next;
     });
   };
@@ -112,25 +111,6 @@ export const CallProvider = ({ children }) => {
     });
   };
 
-  /* =========================
-     VIDEO STREAM MANAGEMENT
-  ========================= */
-  const setVideoStream = (socketId, stream) => {
-    setVideoStreams((prev) => {
-      const next = new Map(prev);
-      next.set(socketId, stream);
-      return next;
-    });
-  };
-
-  const removeVideoStream = (socketId) => {
-    setVideoStreams((prev) => {
-      const next = new Map(prev);
-      next.delete(socketId);
-      return next;
-    });
-  };
-
   return (
     <CallContext.Provider
       value={{
@@ -140,7 +120,12 @@ export const CallProvider = ({ children }) => {
         callRoom,
         callHost,
 
-        /* host control */
+        /* LiveKit actions */
+        startVideoCall, // ✅ REQUIRED
+        endCall,        // ✅ REQUIRED
+
+        /* legacy / future */
+        startCall,
         setCallHost,
 
         /* participants */
@@ -148,20 +133,13 @@ export const CallProvider = ({ children }) => {
         addParticipant,
         removeParticipant,
 
-        /* media */
+        /* media (future-safe) */
         localStream,
         remoteStream,
         videoStreams,
-
-        /* setters */
         setLocalStream,
         setRemoteStream,
-        setVideoStream,
-        removeVideoStream,
-
-        /* actions */
-        startCall,
-        endCall,
+        setVideoStreams,
       }}
     >
       {children}
@@ -169,4 +147,10 @@ export const CallProvider = ({ children }) => {
   );
 };
 
-export const useCall = () => useContext(CallContext);
+export const useCall = () => {
+  const ctx = useContext(CallContext);
+  if (!ctx) {
+    throw new Error("useCall must be used inside CallProvider");
+  }
+  return ctx;
+};

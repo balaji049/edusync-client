@@ -6,16 +6,24 @@ const LiveKitButton = ({ communityId, channelId }) => {
 
   const roomName = `community-${communityId}-${channelId}`;
 
+  const handleClick = () => {
+    if (inCall) {
+      endCall();                 // ✅ FUNCTION
+    } else {
+      startVideoCall(roomName);  // ✅ FUNCTION
+    }
+  };
+
   return (
     <button
-      onClick={() =>
-        inCall ? endCall() : startVideoCall(roomName)
-      }
+      onClick={handleClick}
       style={{
         padding: "6px 12px",
         borderRadius: "6px",
         background: inCall ? "#dc2626" : "#2563eb",
         color: "#fff",
+        border: "none",
+        cursor: "pointer",
       }}
     >
       {inCall ? "Leave Video Call" : "Join Video Call"}
