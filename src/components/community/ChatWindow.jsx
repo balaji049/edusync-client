@@ -6,13 +6,12 @@ import React, {
   useRef,
 } from "react";
 import ChatSearchBar from "./ChatSearchBar";
-import LiveKitButton from "../livekit/LiveKitButton";
-import LiveKitRoomView from "../livekit/LiveKitRoomView";
+
 import API from "../../services/api";
 import MessageBubble from "./MessageBubble";
 import socket from "../../services/socket";
 import { AuthContext } from "../../context/AuthContext";
-import CallButton from "./CallButton";
+//import CallButton from "./CallButton";
 //import VideoRoom from "./VideoRoom";
 
 
@@ -263,7 +262,7 @@ useEffect(() => {
         </button>
       )}
 
-{/* 🎥 VIDEO CALL CONTROLS */}
+{/* 🎥 VIDEO CALL CONTROLS
 <div
   style={{
     display: "flex",
@@ -271,20 +270,21 @@ useEffect(() => {
     marginBottom: "8px",
   }}
 >
-  <LiveKitButton
+ 
+ LiveKitButton
     communityId={communityId}
     channelId={channelId}
   />
-</div>
+</div>  
 
-{/* 🎥 VIDEO CALL VIEW */}
+{/* 🎥 VIDEO CALL VIEW 
 <LiveKitRoomView />
 
 <LiveKitRoomView
   communityId={communityId}
   channelId={channelId}
 />
-
+ */}
 
     {/* 🔊 CALL CONTROLS (CHANNEL LEVEL) 
 <div className="voice-call-header" style={{ display: "flex", gap: "8px" }}>
