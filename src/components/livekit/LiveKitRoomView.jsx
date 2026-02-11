@@ -11,37 +11,63 @@ import { useCall } from "../../context/CallContext";
 
 const LiveKitRoomView = () => {
   const { user } = useAuth();
-  const { inCall, roomName, endCall } = useCall();
+  const { inCall, callRoom, endCall } = useCall();
 
   const [token, setToken] = useState(null);
-  const [url, setUrl] = useState(null);
+  const [serverUrl, setServerUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!inCall || !roomName) return;
+    if (!inCall || !callRoom || !user) return;
 
-    API.post("/livekit/token", {
-      roomName,
-      userId: user._id,
-      userName: user.name,
-    }).then((res) => {
-      setToken(res.data.token);
-      setUrl(res.data.url);
-    });
-  }, [inCall, roomName, user]);
+    let cancelled = false;
 
+    const fetchToken = async () => {
+      try {
+        setLoading(true);
+
+        const res = await API.post("/livekit/token", {
+          roomName: callRoom,
+          userId: user._id,
+          userName: user.name,
+        });
+
+        if (!cancelled) {
+          setToken(res.data.token);       // ✅ string JWT
+          setServerUrl(res.data.url);     // ✅ wss://xxx.livekit.cloud
+        }
+      } catch (err) {
+        console.error("❌ LiveKit token fetch failed:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchToken();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inCall, callRoom, user]);
+
+  // Guards
   if (!inCall) return null;
-  if (!token || !url) return <p>Joining…</p>;
+
+  if (loading || !token || !serverUrl) {
+    return <p>Joining…</p>;
+  }
 
   return (
     <div style={{ height: "420px" }}>
       <LiveKitRoom
         token={token}
-        serverUrl={url}
-        connect
+        serverUrl={serverUrl}
+        connect={inCall}     // 🔥 important
         audio
         video
         onDisconnected={endCall}
         data-lk-theme="default"
+        style={{ height: "100%" }}
       >
         <VideoConference />
       </LiveKitRoom>

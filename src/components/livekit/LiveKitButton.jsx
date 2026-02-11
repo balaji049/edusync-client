@@ -4,13 +4,13 @@ import { useCall } from "../../context/CallContext";
 const LiveKitButton = ({ communityId, channelId }) => {
   const { inCall, startVideoCall, endCall } = useCall();
 
-  const roomName = `community-${communityId}-${channelId}`;
-
   const handleClick = () => {
     if (inCall) {
-      endCall();                 // ✅ FUNCTION
+      endCall();
     } else {
-      startVideoCall(roomName);  // ✅ FUNCTION
+      // 🔥 MUST match LiveKitRoomView
+      const roomName = `community-${communityId}-${channelId}`;
+      startVideoCall(roomName);
     }
   };
 
@@ -19,10 +19,9 @@ const LiveKitButton = ({ communityId, channelId }) => {
       onClick={handleClick}
       style={{
         padding: "6px 12px",
-        borderRadius: "6px",
         background: inCall ? "#dc2626" : "#2563eb",
         color: "#fff",
-        border: "none",
+        borderRadius: "6px",
         cursor: "pointer",
       }}
     >
