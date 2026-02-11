@@ -14,37 +14,24 @@ import { AuthContext } from "../../context/AuthContext";
 import { useCall } from "../../context/CallContext";
 import JitsiCall from "../calls/JitsiCall";
 
-//import CallButton from "./CallButton";
-//import VideoRoom from "./VideoRoom";
-
-
-
-
 /* ============================
    NORMALIZE MESSAGE FORMAT
-   (FINAL – SAFE & CORRECT)
 ============================ */
 const normalizeMessage = (m) => ({
   _id: m._id,
   text: m.text,
-  type: m.type || "text",          // text | file | image | ai | system
+  type: m.type || "text",
   channel: m.channel,
   timestamp: m.timestamp,
-
-  // sender identity
   senderId:
     m.role === "ai"
       ? "ai"
       : m.senderId || m.sender?._id || null,
-
   senderName:
     m.role === "ai"
       ? "EduSync AI"
       : m.senderName || m.sender?.name || "Unknown",
-
-  senderRole: m.role || "user",    // user | ai | system
-
-  // attached resource (file/image)
+  senderRole: m.role || "user",
   resource: m.resource || null,
 });
 
@@ -60,6 +47,22 @@ function highlightText(text, query) {
 const ChatWindow = ({ communityId, channelId }) => {
   const { user } = useContext(AuthContext);
 
+  /* ============================
+     🔐 SAFE CALL CONTEXT (FIX)
+  ============================ */
+  const callCtx = useCall?.() || {};
+
+  const {
+    startVideoCall = () => {},
+    endCall = () => {},
+    callActive = false,
+  } = callCtx;
+
+  const roomName = `community-${communityId}-channel-${channelId}`;
+
+  /* ============================
+     STATE
+  ============================ */
   const [messages, setMessages] = useState([]);
   const [searchResults, setSearchResults] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -106,14 +109,12 @@ const ChatWindow = ({ communityId, channelId }) => {
 
     const handleMessage = (msg) => {
       if (msg.channel !== channelId) return;
-
       const normalized = normalizeMessage(msg);
-
-      setMessages((prev) => {
-        if (prev.some((m) => m._id === normalized._id))
-          return prev;
-        return [...prev, normalized];
-      });
+      setMessages((prev) =>
+        prev.some((m) => m._id === normalized._id)
+          ? prev
+          : [...prev, normalized]
+      );
     };
 
     socket.on("message-received", handleMessage);
@@ -121,37 +122,31 @@ const ChatWindow = ({ communityId, channelId }) => {
       socket.off("message-received", handleMessage);
   }, [channelId, user?._id]);
 
-
-
   /* ============================
-   📡 LIVE RESOURCE COUNTER UPDATE
-   (RUN ONCE)
-============================ */
-useEffect(() => {
-  const handleResourceUpdate = (data) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.resource?._id === data.resourceId
-          ? {
-              ...m,
-              resource: {
-                ...m.resource,
-                views: data.views,
-                downloads: data.downloads,
-              },
-            }
-          : m
-      )
-    );
-  };
+     RESOURCE COUNTER UPDATE
+  ============================ */
+  useEffect(() => {
+    const handleResourceUpdate = (data) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.resource?._id === data.resourceId
+            ? {
+                ...m,
+                resource: {
+                  ...m.resource,
+                  views: data.views,
+                  downloads: data.downloads,
+                },
+              }
+            : m
+        )
+      );
+    };
 
-  socket.on("resource-updated", handleResourceUpdate);
-
-  return () => {
-    socket.off("resource-updated", handleResourceUpdate);
-  };
-}, []);
-
+    socket.on("resource-updated", handleResourceUpdate);
+    return () =>
+      socket.off("resource-updated", handleResourceUpdate);
+  }, []);
 
   /* ============================
      TYPING INDICATOR
@@ -182,13 +177,11 @@ useEffect(() => {
   ============================ */
   const sendMessage = async () => {
     if (!text.trim()) return;
-
     const payload = text;
     setText("");
-
-    const room = `${communityId}:${channelId}`;
-    socket.emit("typing:stop", { room });
-
+    socket.emit("typing:stop", {
+      room: `${communityId}:${channelId}`,
+    });
     await API.post("/messages/send", {
       communityId,
       channelId,
@@ -196,23 +189,13 @@ useEffect(() => {
     });
   };
 
-
-
-const { startVideoCall, endCall, callActive } = useCall();
-
-const roomName = `community-${communityId}-channel-${channelId}`;
-
-
-
   /* ============================
      HANDLE TYPING
   ============================ */
   const handleTyping = (value) => {
     setText(value);
-
     const room = `${communityId}:${channelId}`;
     socket.emit("typing:start", { room });
-
     clearTimeout(typingTimeout.current);
     typingTimeout.current = setTimeout(() => {
       socket.emit("typing:stop", { room });
@@ -220,127 +203,76 @@ const roomName = `community-${communityId}-channel-${channelId}`;
   };
 
   /* ============================
-     FILE UPLOAD (RESOURCE → MESSAGE)
+     FILE UPLOAD
   ============================ */
   const handleFileUpload = async (file) => {
     if (!file) return;
-
     const formData = new FormData();
     formData.append("file", file);
     formData.append("communityId", communityId);
     formData.append("channelId", channelId);
-
-    await API.post(
-      "/resources/upload-message",
-      formData
-    );
-
+    await API.post("/resources/upload-message", formData);
     fileInputRef.current.value = "";
   };
 
   /* ============================
-     JUMP TO MESSAGE
+     UI
   ============================ */
-  const jumpToMessage = (id) => {
-    messageRefs.current[id]?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-  };
-
   const displayMessages = searchResults ?? messages;
 
   return (
     <section className="chat-window">
-      {/* 🔍 SEARCH */}
       <ChatSearchBar
         communityId={communityId}
         onResults={setSearchResults}
         onQuery={setSearchQuery}
       />
 
-      {searchResults && (
-        <button
-          className="clear-search-btn"
-          onClick={() => setSearchResults(null)}
-        >
-          Clear Search
-        </button>
-      )}
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        {!callActive ? (
+          <>
+            <button onClick={() => startVideoCall(roomName)}>
+              🎥 Video Call
+            </button>
+            <button onClick={() => startVideoCall(roomName)}>
+              🔊 Audio Call
+            </button>
+          </>
+        ) : (
+          <button onClick={endCall}>❌ Leave Call</button>
+        )}
+      </div>
 
+      <JitsiCall />
 
-
-
-<div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-  {!callActive ? (
-    <>
-      <button onClick={() => startVideoCall(roomName)}>
-  🎥 Video Call
-</button>
-      <button onClick={() => startVideoCall(roomName)}>
-  🔊 Audio Call
-</button>
-    </>
-  ) : (
-    <button onClick={endCall}>❌ Leave Call</button>
-  )}
-</div>
-<JitsiCall />
-
-
-
-      {/* 💬 MESSAGES */}
       <div className="chat-messages">
         {displayMessages.map((msg) => (
-          <div
-            key={msg._id}
-            ref={(el) =>
-              (messageRefs.current[msg._id] = el)
-            }
-            onClick={() =>
-              searchResults && jumpToMessage(msg._id)
-            }
-          >
+          <div key={msg._id}>
             <MessageBubble
-  type={msg.type}
-  name={msg.senderName}
-  isSelf={msg.senderId === user?._id}
-  resource={msg.resource}
->
-  {/* TEXT CONTENT */}
-  {msg.text && (
-    searchResults ? (
-      <span
-        dangerouslySetInnerHTML={{
-          __html: highlightText(msg.text, searchQuery),
-        }}
-      />
-    ) : (
-      <span>{msg.text}</span>
-    )
-  )}
-
-  {/* CHANNEL TAG (SEARCH MODE ONLY) */}
-  {searchResults && (
-    <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>
-      #{msg.channel}
-    </div>
-  )}
-</MessageBubble>
-
+              type={msg.type}
+              name={msg.senderName}
+              isSelf={msg.senderId === user?._id}
+              resource={msg.resource}
+            >
+              {msg.text &&
+                (searchResults ? (
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: highlightText(
+                        msg.text,
+                        searchQuery
+                      ),
+                    }}
+                  />
+                ) : (
+                  <span>{msg.text}</span>
+                ))}
+            </MessageBubble>
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* ✏️ TYPING */}
-      {typingUsers.length > 0 && (
-        <div className="typing-indicator">
-          Someone is typing...
-        </div>
-      )}
-
-      {/* ✍️ INPUT */}
       <div className="chat-input">
         <input
           type="file"
@@ -349,7 +281,6 @@ const roomName = `community-${communityId}-channel-${channelId}`;
             handleFileUpload(e.target.files[0])
           }
         />
-
         <input
           value={text}
           onChange={(e) =>
@@ -360,7 +291,6 @@ const roomName = `community-${communityId}-channel-${channelId}`;
           }
           placeholder={`Message #${channelId}`}
         />
-
         <button onClick={sendMessage}>Send</button>
       </div>
     </section>
@@ -368,7 +298,6 @@ const roomName = `community-${communityId}-channel-${channelId}`;
 };
 
 export default ChatWindow;
-
 
 
 
