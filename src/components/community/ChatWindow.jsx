@@ -11,6 +11,9 @@ import API from "../../services/api";
 import MessageBubble from "./MessageBubble";
 import socket from "../../services/socket";
 import { AuthContext } from "../../context/AuthContext";
+import { useCall } from "../../context/CallContext";
+import JitsiCall from "../calls/JitsiCall";
+
 //import CallButton from "./CallButton";
 //import VideoRoom from "./VideoRoom";
 
@@ -195,6 +198,9 @@ useEffect(() => {
 
 
 
+const { startVideoCall, endCall, callActive } = useCall();
+
+const roomName = `community-${communityId}-channel-${channelId}`;
 
 
 
@@ -262,58 +268,24 @@ useEffect(() => {
         </button>
       )}
 
-{/* 🎥 VIDEO CALL CONTROLS
-<div
-  style={{
-    display: "flex",
-    gap: "8px",
-    marginBottom: "8px",
-  }}
->
- 
- LiveKitButton
-    communityId={communityId}
-    channelId={channelId}
-  />
-</div>  
 
-{/* 🎥 VIDEO CALL VIEW 
-<LiveKitRoomView />
 
-<LiveKitRoomView
-  communityId={communityId}
-  channelId={channelId}
-/>
- */}
 
-    {/* 🔊 CALL CONTROLS (CHANNEL LEVEL) 
-<div className="voice-call-header" style={{ display: "flex", gap: "8px" }}>
-  <CallButton
-    communityId={communityId}
-    channelId={channelId}
-  />
-
-  <div style={{ marginBottom: "10px" }}>
-  <button disabled style={{ marginRight: "8px" }}>
-    Voice Call (Disabled)
-  </button>
-  <button disabled>
-    Video Call (Disabled)
-  </button>
+<div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+  {!callActive ? (
+    <>
+      <button onClick={() => startVideoCall(roomName)}>
+  🎥 Video Call
+</button>
+      <button onClick={() => startVideoCall(roomName)}>
+  🔊 Audio Call
+</button>
+    </>
+  ) : (
+    <button onClick={endCall}>❌ Leave Call</button>
+  )}
 </div>
-
-
-</div>
-
-*/}
-{/* 🎥 VIDEO ROOM (ABOVE MESSAGES) 
-<VideoRoom
-  communityId={communityId}
-  channelId={channelId}
-/>  */}
-
-{/* 🔊 VOICE CALL (AUDIO ONLY) */}
-
+<JitsiCall />
 
 
 
