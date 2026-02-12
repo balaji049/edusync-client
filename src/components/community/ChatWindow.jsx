@@ -10,19 +10,24 @@ import API from "../../services/api";
 import MessageBubble from "./MessageBubble";
 import socket from "../../services/socket";
 import { AuthContext } from "../../context/AuthContext";
-import { useCall } from "../../context/CallContext";
-import JitsiCall from "../calls/JitsiCall";
+import CallButton from "./CallButton";
+//import VideoRoom from "./VideoRoom";
+
+
+
 
 /* ============================
    NORMALIZE MESSAGE FORMAT
+   (FINAL – SAFE & CORRECT)
 ============================ */
 const normalizeMessage = (m) => ({
   _id: m._id,
   text: m.text,
-  type: m.type || "text",
+  type: m.type || "text",          // text | file | image | ai | system
   channel: m.channel,
   timestamp: m.timestamp,
 
+  // sender identity
   senderId:
     m.role === "ai"
       ? "ai"
@@ -33,7 +38,9 @@ const normalizeMessage = (m) => ({
       ? "EduSync AI"
       : m.senderName || m.sender?.name || "Unknown",
 
-  senderRole: m.role || "user",
+  senderRole: m.role || "user",    // user | ai | system
+
+  // attached resource (file/image)
   resource: m.resource || null,
 });
 
@@ -48,7 +55,6 @@ function highlightText(text, query) {
 
 const ChatWindow = ({ communityId, channelId }) => {
   const { user } = useContext(AuthContext);
-  const { startCall, endCall, callActive } = useCall();
 
   const [messages, setMessages] = useState([]);
   const [searchResults, setSearchResults] = useState(null);
@@ -60,8 +66,6 @@ const ChatWindow = ({ communityId, channelId }) => {
   const bottomRef = useRef(null);
   const typingTimeout = useRef(null);
   const fileInputRef = useRef(null);
-
-  const roomName = `community-${communityId}-channel-${channelId}`;
 
   /* ============================
      RESET ON CHANNEL CHANGE
@@ -100,11 +104,12 @@ const ChatWindow = ({ communityId, channelId }) => {
       if (msg.channel !== channelId) return;
 
       const normalized = normalizeMessage(msg);
-      setMessages((prev) =>
-        prev.some((m) => m._id === normalized._id)
-          ? prev
-          : [...prev, normalized]
-      );
+
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === normalized._id))
+          return prev;
+        return [...prev, normalized];
+      });
     };
 
     socket.on("message-received", handleMessage);
@@ -112,12 +117,46 @@ const ChatWindow = ({ communityId, channelId }) => {
       socket.off("message-received", handleMessage);
   }, [channelId, user?._id]);
 
+
+
+  /* ============================
+   📡 LIVE RESOURCE COUNTER UPDATE
+   (RUN ONCE)
+============================ */
+useEffect(() => {
+  const handleResourceUpdate = (data) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.resource?._id === data.resourceId
+          ? {
+              ...m,
+              resource: {
+                ...m.resource,
+                views: data.views,
+                downloads: data.downloads,
+              },
+            }
+          : m
+      )
+    );
+  };
+
+  socket.on("resource-updated", handleResourceUpdate);
+
+  return () => {
+    socket.off("resource-updated", handleResourceUpdate);
+  };
+}, []);
+
+
   /* ============================
      TYPING INDICATOR
   ============================ */
   useEffect(() => {
     const handleTypingUpdate = (userIds) => {
-      setTypingUsers(userIds.filter((id) => id !== user?._id));
+      setTypingUsers(
+        userIds.filter((id) => id !== user?._id)
+      );
     };
 
     socket.on("typing:update", handleTypingUpdate);
@@ -129,7 +168,9 @@ const ChatWindow = ({ communityId, channelId }) => {
      AUTO SCROLL
   ============================ */
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
   }, [messages, searchResults]);
 
   /* ============================
@@ -141,9 +182,8 @@ const ChatWindow = ({ communityId, channelId }) => {
     const payload = text;
     setText("");
 
-    socket.emit("typing:stop", {
-      room: `${communityId}:${channelId}`,
-    });
+    const room = `${communityId}:${channelId}`;
+    socket.emit("typing:stop", { room });
 
     await API.post("/messages/send", {
       communityId,
@@ -151,6 +191,11 @@ const ChatWindow = ({ communityId, channelId }) => {
       text: payload,
     });
   };
+
+
+
+
+
 
   /* ============================
      HANDLE TYPING
@@ -168,7 +213,7 @@ const ChatWindow = ({ communityId, channelId }) => {
   };
 
   /* ============================
-     FILE UPLOAD
+     FILE UPLOAD (RESOURCE → MESSAGE)
   ============================ */
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -178,8 +223,22 @@ const ChatWindow = ({ communityId, channelId }) => {
     formData.append("communityId", communityId);
     formData.append("channelId", channelId);
 
-    await API.post("/resources/upload-message", formData);
+    await API.post(
+      "/resources/upload-message",
+      formData
+    );
+
     fileInputRef.current.value = "";
+  };
+
+  /* ============================
+     JUMP TO MESSAGE
+  ============================ */
+  const jumpToMessage = (id) => {
+    messageRefs.current[id]?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   };
 
   const displayMessages = searchResults ?? messages;
@@ -193,67 +252,129 @@ const ChatWindow = ({ communityId, channelId }) => {
         onQuery={setSearchQuery}
       />
 
-      {/* 📞 CALL CONTROLS */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-        {!callActive ? (
-          <>
-            <button onClick={() => startCall("video", roomName)}>
-              🎥 Video Call
-            </button>
-            <button onClick={() => startCall("audio", roomName)}>
-              🔊 Audio Call
-            </button>
-          </>
-        ) : (
-          <button onClick={endCall}>❌ Leave Call</button>
-        )}
-      </div>
+      {searchResults && (
+        <button
+          className="clear-search-btn"
+          onClick={() => setSearchResults(null)}
+        >
+          Clear Search
+        </button>
+      )}
 
-      {/* 🎥 JITSI CALL WINDOW */}
-      <JitsiCall />
+   {/*
+      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+  <LiveKitButton
+    communityId={communityId}
+    channelId={channelId}
+  />
+</div>
+
+<LiveKitRoomView
+  communityId={communityId}
+  channelId={channelId}
+/>
+
+
+    {/* 🔊 CALL CONTROLS (CHANNEL LEVEL) 
+<div className="voice-call-header" style={{ display: "flex", gap: "8px" }}>
+  <CallButton
+    communityId={communityId}
+    channelId={channelId}
+  />
+
+  <div style={{ marginBottom: "10px" }}>
+  <button disabled style={{ marginRight: "8px" }}>
+    Voice Call (Disabled)
+  </button>
+  <button disabled>
+    Video Call (Disabled)
+  </button>
+</div>
+
+
+</div>
+
+*/}
+{/* 🎥 VIDEO ROOM (ABOVE MESSAGES) 
+<VideoRoom
+  communityId={communityId}
+  channelId={channelId}
+/>  */}
+
+{/* 🔊 VOICE CALL (AUDIO ONLY) */}
+
+
+
 
       {/* 💬 MESSAGES */}
       <div className="chat-messages">
         {displayMessages.map((msg) => (
           <div
             key={msg._id}
-            ref={(el) => (messageRefs.current[msg._id] = el)}
+            ref={(el) =>
+              (messageRefs.current[msg._id] = el)
+            }
+            onClick={() =>
+              searchResults && jumpToMessage(msg._id)
+            }
           >
             <MessageBubble
-              type={msg.type}
-              name={msg.senderName}
-              isSelf={msg.senderId === user?._id}
-              resource={msg.resource}
-            >
-              {msg.text && (
-                searchResults ? (
-                  <span
-                    dangerouslySetInnerHTML={{
-                      __html: highlightText(msg.text, searchQuery),
-                    }}
-                  />
-                ) : (
-                  <span>{msg.text}</span>
-                )
-              )}
-            </MessageBubble>
+  type={msg.type}
+  name={msg.senderName}
+  isSelf={msg.senderId === user?._id}
+  resource={msg.resource}
+>
+  {/* TEXT CONTENT */}
+  {msg.text && (
+    searchResults ? (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: highlightText(msg.text, searchQuery),
+        }}
+      />
+    ) : (
+      <span>{msg.text}</span>
+    )
+  )}
+
+  {/* CHANNEL TAG (SEARCH MODE ONLY) */}
+  {searchResults && (
+    <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>
+      #{msg.channel}
+    </div>
+  )}
+</MessageBubble>
+
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* ✏️ INPUT */}
+      {/* ✏️ TYPING */}
+      {typingUsers.length > 0 && (
+        <div className="typing-indicator">
+          Someone is typing...
+        </div>
+      )}
+
+      {/* ✍️ INPUT */}
       <div className="chat-input">
         <input
           type="file"
           ref={fileInputRef}
-          onChange={(e) => handleFileUpload(e.target.files[0])}
+          onChange={(e) =>
+            handleFileUpload(e.target.files[0])
+          }
         />
 
         <input
           value={text}
-          onChange={(e) => handleTyping(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          onChange={(e) =>
+            handleTyping(e.target.value)
+          }
+          onKeyDown={(e) =>
+            e.key === "Enter" && sendMessage()
+          }
           placeholder={`Message #${channelId}`}
         />
 
@@ -264,6 +385,7 @@ const ChatWindow = ({ communityId, channelId }) => {
 };
 
 export default ChatWindow;
+
 
 
 
