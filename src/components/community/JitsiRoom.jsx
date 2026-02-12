@@ -23,7 +23,7 @@ const JitsiRoom = ({
       roomName,
       parentNode: jitsiRef.current,
       width: "100%",
-      height: mode === "voice" ? 0 : 500, // 🔥 hide video in voice mode
+      height: 500,
 
       userInfo: {
         displayName: user?.name || "EduSync User",
@@ -32,63 +32,18 @@ const JitsiRoom = ({
       configOverwrite: {
         prejoinPageEnabled: false,
         startWithAudioMuted: false,
-        startWithVideoMuted: mode === "voice",
+        startWithVideoMuted: mode === "voice", // 🔥 KEY LINE
       },
 
       interfaceConfigOverwrite: {
         SHOW_JITSI_WATERMARK: false,
         SHOW_WATERMARK_FOR_GUESTS: false,
-        TOOLBAR_BUTTONS:
-          mode === "voice"
-            ? ["microphone", "hangup"]
-            : undefined,
       },
     });
 
     return () => api.dispose();
   }, [communityId, channelId, user, mode]);
 
-  /* =========================
-     VOICE MODE UI (DISCORD STYLE)
-  ========================= */
-  if (mode === "voice") {
-    return (
-      <div
-        style={{
-          marginTop: "12px",
-          padding: "10px",
-          background: "#111827",
-          color: "#fff",
-          borderRadius: "8px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <span>🔊 Voice call active</span>
-
-        <button
-          onClick={onClose}
-          style={{
-            background: "#dc2626",
-            color: "#fff",
-            padding: "6px 12px",
-            borderRadius: "6px",
-            border: "none",
-          }}
-        >
-          Leave
-        </button>
-
-        {/* Hidden Jitsi iframe */}
-        <div ref={jitsiRef} style={{ display: "none" }} />
-      </div>
-    );
-  }
-
-  /* =========================
-     VIDEO MODE UI
-  ========================= */
   return (
     <div style={{ marginTop: "12px" }}>
       <div ref={jitsiRef} />
