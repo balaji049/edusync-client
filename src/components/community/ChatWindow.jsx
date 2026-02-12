@@ -10,7 +10,9 @@ import API from "../../services/api";
 import MessageBubble from "./MessageBubble";
 import socket from "../../services/socket";
 import { AuthContext } from "../../context/AuthContext";
-import CallButton from "./CallButton";
+//import CallButton from "./CallButton";
+import JitsiRoom from "./JitsiRoom";
+
 //import VideoRoom from "./VideoRoom";
 
 
@@ -20,6 +22,7 @@ import CallButton from "./CallButton";
    NORMALIZE MESSAGE FORMAT
    (FINAL – SAFE & CORRECT)
 ============================ */
+
 const normalizeMessage = (m) => ({
   _id: m._id,
   text: m.text,
@@ -55,6 +58,8 @@ function highlightText(text, query) {
 
 const ChatWindow = ({ communityId, channelId }) => {
   const { user } = useContext(AuthContext);
+  const [showJitsi, setShowJitsi] = useState(false);
+
 
   const [messages, setMessages] = useState([]);
   const [searchResults, setSearchResults] = useState(null);
@@ -260,6 +265,22 @@ useEffect(() => {
           Clear Search
         </button>
       )}
+
+
+      <button onClick={() => setShowJitsi(true)}>
+  Join Video Call
+</button>
+
+
+
+      {showJitsi && (
+  <JitsiRoom
+    communityId={communityId}
+    channelId={channelId}
+    onClose={() => setShowJitsi(false)}
+  />
+)}
+
 
    {/*
       <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
