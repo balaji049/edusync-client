@@ -512,3 +512,33 @@ a {
 }
 
 
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.chat-actions .icon-btn {
+  margin-left: 8px;
+}
+
+.chat-composer {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.chat-composer input {
+  flex: 1;
+  margin: 0 8px;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
