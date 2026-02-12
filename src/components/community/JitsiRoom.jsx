@@ -1,7 +1,12 @@
 import { useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 
-const JitsiRoom = ({ communityId, channelId, onClose }) => {
+const JitsiRoom = ({
+  communityId,
+  channelId,
+  mode = "video", // "video" | "voice"
+  onClose,
+}) => {
   const jitsiRef = useRef(null);
   const { user } = useAuth();
 
@@ -27,7 +32,7 @@ const JitsiRoom = ({ communityId, channelId, onClose }) => {
       configOverwrite: {
         prejoinPageEnabled: false,
         startWithAudioMuted: false,
-        startWithVideoMuted: false,
+        startWithVideoMuted: mode === "voice", // 🔥 KEY LINE
       },
 
       interfaceConfigOverwrite: {
@@ -37,7 +42,7 @@ const JitsiRoom = ({ communityId, channelId, onClose }) => {
     });
 
     return () => api.dispose();
-  }, [communityId, channelId, user]);
+  }, [communityId, channelId, user, mode]);
 
   return (
     <div style={{ marginTop: "12px" }}>

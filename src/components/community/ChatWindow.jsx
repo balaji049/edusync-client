@@ -58,7 +58,8 @@ function highlightText(text, query) {
 
 const ChatWindow = ({ communityId, channelId }) => {
   const { user } = useContext(AuthContext);
-  const [showJitsi, setShowJitsi] = useState(false);
+const [showJitsi, setShowJitsi] = useState(false);
+const [callMode, setCallMode] = useState("video"); // "video" | "voice"
 
 
   const [messages, setMessages] = useState([]);
@@ -267,19 +268,37 @@ useEffect(() => {
       )}
 
 
-      <button onClick={() => setShowJitsi(true)}>
+      <button
+  onClick={() => {
+    setCallMode("voice");
+    setShowJitsi(true);
+  }}
+>
+  Join Voice Call
+</button>
+
+<button
+  onClick={() => {
+    setCallMode("video");
+    setShowJitsi(true);
+  }}
+  style={{ marginLeft: "8px" }}
+>
   Join Video Call
 </button>
 
 
 
-      {showJitsi && (
+
+  {showJitsi && (
   <JitsiRoom
     communityId={communityId}
     channelId={channelId}
+    mode={callMode}
     onClose={() => setShowJitsi(false)}
   />
 )}
+
 
 
    {/*
