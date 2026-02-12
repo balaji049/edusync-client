@@ -1,31 +1,43 @@
-// src/context/CallContext.js
-import React, { createContext, useContext, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+} from "react";
+
+/*
+  TEMPORARY SAFE CALL CONTEXT
+
+  Purpose:
+  - Prevent app crashes
+  - Remove all WebRTC complexity
+  - Prepare for Jitsi integration
+*/
 
 const CallContext = createContext(null);
 
 export const CallProvider = ({ children }) => {
-  const [callActive, setCallActive] = useState(false);
-  const [callType, setCallType] = useState(null); // "audio" | "video"
-  const [roomName, setRoomName] = useState(null);
+  const [inCall, setInCall] = useState(false);
+  const [callType, setCallType] = useState(null);
+  const [callRoom, setCallRoom] = useState(null);
 
   const startCall = (type, room) => {
+    setInCall(true);
     setCallType(type);
-    setRoomName(room);
-    setCallActive(true);
+    setCallRoom(room);
   };
 
   const endCall = () => {
-    setCallActive(false);
+    setInCall(false);
     setCallType(null);
-    setRoomName(null);
+    setCallRoom(null);
   };
 
   return (
     <CallContext.Provider
       value={{
-        callActive,
+        inCall,
         callType,
-        roomName,
+        callRoom,
         startCall,
         endCall,
       }}

@@ -6,7 +6,7 @@ import { CallProvider } from "./context/CallContext";
 function App() {
   return (
     <CallProvider>
-                {/* 🔥 MUST BE HERE */}
+              
       <MainLayout>
         <AppRoutes />
       </MainLayout>
