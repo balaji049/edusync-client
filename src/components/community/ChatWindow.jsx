@@ -278,6 +278,43 @@ const ChatWindow = ({ communityId, channelId }) => {
         </div>
       )}
 
+
+      {/* 🔴 CALL ACTIVE INDICATOR (Discord-style) */}
+{isCallActive && !showJitsi && (
+  <div
+    style={{
+      background: "#1f2937",
+      color: "#fff",
+      padding: "8px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      borderRadius: "6px",
+      marginBottom: "8px",
+    }}
+  >
+    <span>🔴 Call in progress</span>
+
+    <button
+      onClick={() => {
+        setCallMode("voice"); // or "video"
+        setShowJitsi(true);
+      }}
+      style={{
+        background: "#2563eb",
+        color: "#fff",
+        padding: "4px 10px",
+        borderRadius: "4px",
+        border: "none",
+        cursor: "pointer",
+      }}
+    >
+      Join
+    </button>
+  </div>
+)}
+
+
       {/* 🎥 JITSI */}
       {showJitsi && (
         <div className="call-overlay">
@@ -290,18 +327,7 @@ const ChatWindow = ({ communityId, channelId }) => {
         </div>
       )}
 
-      {isCallActive && !showJitsi && (
-  <div style={{ background: "#1f2937", color: "#fff", padding: "6px" }}>
-    🔴 Call in progress
-    <button
-      onClick={() => setShowJitsi(true)}
-      style={{ marginLeft: "10px" }}
-    >
-      Join
-    </button>
-  </div>
-)}
-
+     
 
       {/* 💬 MESSAGES */}
       <div className="chat-messages">
