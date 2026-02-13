@@ -56,6 +56,8 @@ const ChatWindow = ({ communityId, channelId }) => {
 
   const [showJitsi, setShowJitsi] = useState(false);
   const [callMode, setCallMode] = useState("video");
+  const [isCallActive, setIsCallActive] = useState(false);
+
 
   const messageRefs = useRef({});
   const bottomRef = useRef(null);
@@ -88,6 +90,12 @@ const ChatWindow = ({ communityId, channelId }) => {
       })
       .catch(console.error);
   }, [communityId, channelId]);
+
+  useEffect(() => {
+  socket.on("call:active", setIsCallActive);
+  return () => socket.off("call:active");
+}, []);
+
 
   /* ============================
      REAL-TIME MESSAGES
@@ -281,6 +289,19 @@ const ChatWindow = ({ communityId, channelId }) => {
           />
         </div>
       )}
+
+      {isCallActive && !showJitsi && (
+  <div style={{ background: "#1f2937", color: "#fff", padding: "6px" }}>
+    🔴 Call in progress
+    <button
+      onClick={() => setShowJitsi(true)}
+      style={{ marginLeft: "10px" }}
+    >
+      Join
+    </button>
+  </div>
+)}
+
 
       {/* 💬 MESSAGES */}
       <div className="chat-messages">
