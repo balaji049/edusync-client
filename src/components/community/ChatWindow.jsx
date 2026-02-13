@@ -279,33 +279,30 @@ const ChatWindow = ({ communityId, channelId }) => {
       )}
 
 
-      {/* 🔴 CALL ACTIVE INDICATOR (Discord-style) */}
+
 {isCallActive && !showJitsi && (
   <div
     style={{
       background: "#1f2937",
       color: "#fff",
       padding: "8px",
+      marginBottom: "8px",
+      borderRadius: "6px",
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      borderRadius: "6px",
-      marginBottom: "8px",
     }}
   >
     <span>🔴 Call in progress</span>
 
     <button
-      onClick={() => {
-        setCallMode("voice"); // or "video"
-        setShowJitsi(true);
-      }}
+      onClick={() => setShowJitsi(true)}
       style={{
         background: "#2563eb",
         color: "#fff",
+        border: "none",
         padding: "4px 10px",
         borderRadius: "4px",
-        border: "none",
         cursor: "pointer",
       }}
     >
@@ -313,6 +310,7 @@ const ChatWindow = ({ communityId, channelId }) => {
     </button>
   </div>
 )}
+
 
 
       {/* 🎥 JITSI */}
@@ -330,6 +328,7 @@ const ChatWindow = ({ communityId, channelId }) => {
      
 
       {/* 💬 MESSAGES */}
+      <div className="chat-messages-container">
       <div className="chat-messages">
         {displayMessages.map((msg) => (
           <div
@@ -368,6 +367,8 @@ const ChatWindow = ({ communityId, channelId }) => {
         ))}
         <div ref={bottomRef} />
       </div>
+      </div>
+      
 
       {/* ✍️ TYPING */}
       {typingUsers.length > 0 && (

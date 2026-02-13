@@ -542,3 +542,25 @@ a {
   font-size: 18px;
   cursor: pointer;
 }
+
+
+.chat-messages-container {
+  height: calc(100vh - 260px); /* adjust if needed */
+  overflow: hidden;
+  display: flex;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* smooth scrolling */
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 4px;
+}
