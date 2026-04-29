@@ -1,4 +1,4 @@
-# EduSync — Community Learning Platform
+# EduSync - Community Learning Platform
 
 > A full-stack platform that brings real-time collaboration, resource management, and AI-powered assistance together in one place for students and educators.
 
@@ -55,9 +55,9 @@ EduSync was built to address all of these problems in one cohesive system.
 
 EduSync solves these problems through four core pillars:
 
-1. **Centralized community space** — all learning happens in one place, organized by community channels
-2. **Real-time chat with file sharing** — instant messaging with typing indicators, file support, and message search
-3. **Dedicated resource hub** — a separate, well-organized space for uploads so they don't clutter the chat
+1. **Centralized community space** - all learning happens in one place, organized by community channels
+2. **Real-time chat with file sharing** - instant messaging with typing indicators, file support, and message search
+3. **Dedicated resource hub** - a separate, well-organized space for uploads so they don't clutter the chat
 4. **Context-aware AI assistant** — pulls recent conversation history to give intelligent, relevant responses
 
 ---
